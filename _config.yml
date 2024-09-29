@@ -30,9 +30,15 @@ github_username:  uncrayon
 
 # Build settings
 theme: minima
+show_excerpts: true
+posts_dir: _posts
 markdown: kramdown
+# mathjax: true
 kramdown:
   input: GFM
+  syntax_highlighter: coderay
+  syntax_highlighter_opts:
+    line_numbers: inline
 plugins:
   - jekyll-feed
 
