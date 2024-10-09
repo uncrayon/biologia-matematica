@@ -37,8 +37,8 @@ markdown: kramdown
 kramdown:
   input: GFM
   syntax_highlighter: coderay
-  syntax_highlighter_opts:
-    line_numbers: inline
+  #syntax_highlighter_opts:
+    #line_numbers: inline
 plugins:
   - jekyll-feed
 
