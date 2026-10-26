@@ -17,7 +17,7 @@ Partimos del modelo **Wolf Sheep Predation** de la biblioteca de NetLogo (Wilens
 **Cómo está organizado este trabajo.**
 
 * **Python (este notebook).** Reimplementamos ambos modelos de NetLogo en Python, siguiendo su código, para poder correr cientos de simulaciones y hacer estadística en el mismo lugar donde se explica todo.
-* **NetLogo (archivo aparte).** El modelo modificado está en [`Wolf-Sheep-Rebano.nlogo`](https://github.com/uncrayon/biologia-matematica/blob/main/assets/netlogo/Wolf-Sheep-Rebano.nlogo): agrega los interruptores `rebano?` y `reproduccion-gradual?`, los deslizadores de las reglas de parvada, `edad-madurez` y `energia-minima`, y experimentos de BehaviorSpace. ⚠️ Ese archivo se escribió sin poder ejecutar NetLogo, así que **no está probado**; la lógica es exactamente la de las clases de Python de abajo.
+* **NetLogo (archivo aparte).** El modelo modificado está en [`Wolf-Sheep-Rebano.nlogo`](https://github.com/uncrayon/biologia-matematica/blob/main/assets/netlogo/Wolf-Sheep-Rebano.nlogo): agrega los interruptores `rebano?` y `reproduccion-gradual?`, los deslizadores de las reglas de parvada, `edad-madurez` y `energia-minima`, y experimentos de BehaviorSpace. Lo ejecutamos en NetLogo 6.4.0 y sus resultados coinciden con los de la versión en Python (sección 7).
 
 **Contenido**
 
@@ -27,6 +27,7 @@ Partimos del modelo **Wolf Sheep Predation** de la biblioteca de NetLogo (Wilens
 4. Reproducción gradual.
 5. Estadística de muchas simulaciones: estabilidad, oscilaciones, extinción y una transición.
 6. Comparación con el modelo continuo.
+7. Verificación con NetLogo.
 
 ## 1. El modelo presa-depredador
 
@@ -942,6 +943,76 @@ plt.show()
 {% endraw %}![Figura]({{ '/assets/images/mp1-p7-ovejas-lobos-rebano/mp1-p7-ovejas-lobos-rebano_28_0.png' | relative_url }}){% raw %}
     
 
+
+## 7. Verificación con NetLogo
+
+¿Coincide la reimplementación con el modelo de NetLogo modificado? Corrimos `Wolf-Sheep-Rebano.nlogo` en NetLogo 6.4.0 (sin interfaz gráfica, con `netlogo-headless.sh`) con los dos experimentos de BehaviorSpace incluidos en el archivo:
+
+* `cuatro-versiones`: 30 simulaciones de 2000 ticks de cada versión. Guardamos los conteos cada 10 ticks en [`_data/netlogo_cuatro-versiones_cada10.csv`](https://github.com/uncrayon/biologia-matematica/blob/main/_data/netlogo_cuatro-versiones_cada10.csv).
+* `barrido-edad-madurez`: 20 simulaciones de 1500 ticks para cada edad de madurez, en [`_data/netlogo_barrido-edad-madurez.csv`](https://github.com/uncrayon/biologia-matematica/blob/main/_data/netlogo_barrido-edad-madurez.csv).
+
+
+```python
+import pathlib
+import pandas as pd
+
+
+def leer_datos(nombre):
+    """Lee un CSV de _data/ (copia local o, en Colab, desde GitHub)."""
+    ruta = pathlib.Path("../_data") / nombre
+    url = "https://raw.githubusercontent.com/uncrayon/biologia-matematica/main/_data/" + nombre
+    return pd.read_csv(ruta if ruta.exists() else url)
+
+
+cuatro = leer_datos("netlogo_cuatro-versiones_cada10.csv")
+nombre_version = {(False, False): "original", (True, False): "rebaño",
+                  (False, True): "gradual", (True, True): "rebaño + gradual"}
+print(f"{'versión':18s} {'P(ext. lobos)':>22s} {'ovejas':>14s} {'lobos':>14s} {'amplitud ovejas':>20s}")
+print(f"{'':18s} {'NetLogo | Python':>22s} {'NetLogo|Python':>14s} {'NetLogo|Python':>14s} {'NetLogo | Python':>20s}")
+for (reb, grad), g in cuatro.groupby(["rebano?", "reproduccion-gradual?"]):
+    v = nombre_version[(bool(reb), bool(grad))]
+    final = g.sort_values("[step]").groupby("[run number]").last()
+    ext = (final["count wolves"] == 0).mean()
+    vivas = final.index[(final["count wolves"] > 0) & (final["count sheep"] > 0)]
+    tramo = g[(g["[step]"] >= TRANS) & g["[run number]"].isin(vivas)]
+    amp = tramo.groupby("[run number]")["count sheep"].std().mean()
+    S = series[v]
+    coex = (S[:, -1, 0] > 0) & (S[:, -1, 1] > 0)
+    print(f"{v:18s} {ext:9.2f} | {metricas[v]['ext_l'].mean():.2f}      "
+          f"{tramo['count sheep'].mean():5.0f} | {S[coex, TRANS:, 0].mean():3.0f}   "
+          f"{tramo['count wolves'].mean():5.0f} | {S[coex, TRANS:, 1].mean():3.0f}   "
+          f"{amp:9.1f} | {metricas[v]['amp'].mean():.1f}")
+
+barrido = leer_datos("netlogo_barrido-edad-madurez.csv")
+p_nl = barrido.groupby("edad-madurez")["count wolves"].apply(lambda w: (w == 0).mean())
+plt.figure(figsize=(7.5, 4.3))
+plt.errorbar(edades, p_ext, yerr=ic_ext, fmt="o-", capsize=4, color="C3", label="Python (20 sim. por punto)")
+plt.plot(p_nl.index, p_nl.values, "s--", color="k", label="NetLogo (20 sim. por punto)")
+plt.xlabel("edad de madurez de las ovejas [ticks]")
+plt.ylabel("P(extinción de lobos en 1500 ticks)")
+plt.legend()
+plt.show()
+print("NetLogo, P(extinción de lobos):", p_nl.round(2).to_dict())
+```
+
+    versión                     P(ext. lobos)         ovejas          lobos      amplitud ovejas
+                             NetLogo | Python NetLogo|Python NetLogo|Python     NetLogo | Python
+    original                0.00 | 0.00        161 | 160      76 |  76        25.7 | 25.3
+    gradual                 0.00 | 0.00        163 | 164      56 |  57        33.5 | 32.2
+    rebaño                  0.00 | 0.00        162 | 160      69 |  69        25.4 | 24.8
+    rebaño + gradual        0.00 | 0.03        163 | 164      50 |  49        29.0 | 30.3
+
+
+
+    
+{% endraw %}![Figura]({{ '/assets/images/mp1-p7-ovejas-lobos-rebano/mp1-p7-ovejas-lobos-rebano_30_1.png' | relative_url }}){% raw %}
+    
+
+
+    NetLogo, P(extinción de lobos): {0: 0.0, 10: 0.0, 20: 0.0, 30: 0.0, 40: 0.0, 60: 0.1, 80: 0.35, 100: 0.4, 140: 0.55}
+
+
+**Lectura.** Las dos implementaciones coinciden muy bien: poblaciones promedio, amplitud de las oscilaciones y el efecto de cada modificación (el rebaño baja el número de lobos de unos 76 a unos 69; la reproducción gradual lo baja a unos 56 y aumenta la amplitud). La transición con la edad de madurez también aparece en NetLogo: la extinción de los lobos empieza alrededor de los 40–60 ticks de madurez y crece después. Los valores puntuales difieren algo (con edad 140, 0.55 en NetLogo y 0.85 en Python), lo esperable con solo 20 simulaciones por punto (el error estándar de cada proporción es de hasta 0.11) y con la pequeña diferencia de que en Python los agentes actúan a la vez y en NetLogo uno tras otro.
 
 ## Conclusiones
 

@@ -14,7 +14,7 @@ En el modelo **Ants** de la biblioteca de NetLogo (Wilensky, 1997), una colonia 
 **Cómo está organizado este trabajo.**
 
 * **Python (este notebook).** Reimplementamos el modelo de NetLogo en Python, siguiendo su código línea por línea, para poder correr cientos de simulaciones y hacer estadística en el mismo lugar donde se explica todo.
-* **NetLogo (archivo aparte).** El enunciado pide añadir el código en un archivo separado: el modelo de NetLogo modificado está en [`Ants-Levy.nlogo`](https://github.com/uncrayon/biologia-matematica/blob/main/assets/netlogo/Ants-Levy.nlogo). Agrega un selector de movimiento (caminata aleatoria o vuelos de Lévy), los deslizadores `mu` y `paso-maximo`, tres escenarios de comida y un experimento de BehaviorSpace para repetir las simulaciones. ⚠️ Ese archivo se escribió sin poder ejecutar NetLogo, así que **no está probado**; si algo falla al abrirlo, la lógica es exactamente la de la clase de Python de abajo.
+* **NetLogo (archivo aparte).** El enunciado pide añadir el código en un archivo separado: el modelo de NetLogo modificado está en [`Ants-Levy.nlogo`](https://github.com/uncrayon/biologia-matematica/blob/main/assets/netlogo/Ants-Levy.nlogo). Agrega un selector de movimiento (caminata aleatoria o vuelos de Lévy), los deslizadores `mu` y `paso-maximo`, tres escenarios de comida y un experimento de BehaviorSpace para repetir las simulaciones. Lo ejecutamos en NetLogo 6.4.0 y sus resultados coinciden con los de la versión en Python (sección 6).
 
 **Contenido**
 
@@ -23,7 +23,8 @@ En el modelo **Ants** de la biblioteca de NetLogo (Wilensky, 1997), una colonia 
 3. Vuelos de Lévy: la distribución de pasos y sus beneficios.
 4. Hormigas con vuelos de Lévy.
 5. Eficiencia: muchas simulaciones, media y desviación estándar.
-6. ¿En qué condiciones ganan los vuelos de Lévy?
+6. Verificación con NetLogo.
+7. ¿En qué condiciones ganan los vuelos de Lévy?
 
 ## 1. El modelo de hormigas
 
@@ -780,17 +781,110 @@ plt.show()
     
 
 
-## 6. ¿En qué condiciones ganan los vuelos de Lévy?
+## 6. Verificación con NetLogo
 
-Lo que muestran las simulaciones (los valores exactos están en las tablas de arriba):
+Todo lo anterior usa la reimplementación en Python. ¿Coincide con el modelo de NetLogo modificado? Corrimos `Ants-Levy.nlogo` en NetLogo 6.4.0 (sin interfaz gráfica, con `netlogo-headless.sh`) con el experimento de BehaviorSpace incluido en el archivo, `levy-vs-caminata`: 30 repeticiones de cada combinación de movimiento, $\mu$ y escenario, 720 simulaciones en total. Como la caminata original no usa $\mu$, tiene 120 repeticiones. Los resultados están en [`_data/netlogo_levy-vs-caminata.csv`](https://github.com/uncrayon/biologia-matematica/blob/main/_data/netlogo_levy-vs-caminata.csv); BehaviorSpace reporta −1 cuando un tiempo no se alcanzó y lo reemplazamos por el límite de 1 500 ticks, igual que en Python.
+
+
+```python
+import pathlib
+import pandas as pd
+
+RUTA = pathlib.Path("../_data/netlogo_levy-vs-caminata.csv")
+URL = ("https://raw.githubusercontent.com/uncrayon/biologia-matematica/main/"
+       "_data/netlogo_levy-vs-caminata.csv")
+nl = pd.read_csv(RUTA if RUTA.exists() else URL)
+for col in ["primer-hallazgo", "tick-50", "tick-90"]:
+    nl[col] = nl[col].where(nl[col] >= 0, T_MAX)          # -1 = no se alcanzó
+nl["estrategia"] = np.where(nl["movimiento"] == "caminata-aleatoria", "caminata original",
+                            "Lévy μ=" + nl["mu"].astype(float).astype(str))
+
+cols = ["primer-hallazgo", "tick-50", "tick-90"]
+for esc in ESCENARIOS:
+    print(f"\nEscenario '{esc}': media ± desv. est. (NetLogo | Python)")
+    print(f"{'estrategia':20s} {'t_primera':>24s} {'t_50':>24s} {'t_90':>24s}")
+    for est in ESTRATEGIAS:
+        sel = nl[(nl["escenario-comida"] == esc) & (nl["estrategia"] == ETIQUETA[est])]
+        R = resultados[(esc, est)]
+        celdas = [f"{sel[c].mean():5.0f}±{sel[c].std():4.0f} | {R[:, k].mean():5.0f}±{R[:, k].std():4.0f}"
+                  for k, c in enumerate(cols)]
+        print(f"{ETIQUETA[est]:20s} " + " ".join(f"{x:>24s}" for x in celdas))
+
+# La única ventaja de Lévy que encontramos en Python: mu = 1.5, escenario 'lejana', t_50.
+lej = nl[nl["escenario-comida"] == "lejana"]
+a = lej[lej["estrategia"] == "Lévy μ=1.5"]["tick-50"]
+b_ = lej[lej["estrategia"] == "caminata original"]["tick-50"]
+print(f"\nNetLogo, 'lejana', t_50: Lévy μ=1.5 = {a.mean():.0f}, caminata = {b_.mean():.0f},"
+      f" Mann-Whitney p = {stats.mannwhitneyu(a, b_).pvalue:.2f}")
+```
+
+    
+    Escenario 'original': media ± desv. est. (NetLogo | Python)
+    estrategia                          t_primera                     t_50                     t_90
+    caminata original        30±   7 |    28±   8    346±  87 |   359± 101    882± 222 |   854± 201
+    Lévy μ=1.5               33±   8 |    35±  10    387±  98 |   384±  95    910± 167 |   930± 209
+    Lévy μ=2.0               40±  10 |    39±  13    444± 111 |   436± 112   1096± 287 |  1162± 262
+    Lévy μ=2.5               51±  15 |    52±  15    551± 128 |   549± 158   1405± 201 |  1331± 218
+    Lévy μ=3.0               63±  18 |    65±  20    561± 169 |   606± 216   1499±   4 |  1496±  23
+    
+    Escenario 'lejana': media ± desv. est. (NetLogo | Python)
+    estrategia                          t_primera                     t_50                     t_90
+    caminata original        74±  21 |    77±  17    391± 143 |   486± 159    537± 247 |   609± 235
+    Lévy μ=1.5               70±  17 |    72±  20    408± 121 |   396± 143    517± 182 |   526± 251
+    Lévy μ=2.0               97±  21 |   102±  32    547± 215 |   527± 205    861± 390 |   790± 373
+    Lévy μ=2.5              148±  44 |   136±  50    975± 347 |   927± 349   1300± 361 |  1171± 396
+    Lévy μ=3.0              180±  38 |   187±  61   1152± 427 |  1145± 392   1294± 372 |  1300± 368
+    
+    Escenario 'dispersa': media ± desv. est. (NetLogo | Python)
+    estrategia                          t_primera                     t_50                     t_90
+    caminata original        25±   8 |    26±   8    329±  75 |   320±  59    845± 184 |   830± 216
+    Lévy μ=1.5               26±   7 |    29±  10    367±  89 |   343±  83    863± 181 |   833± 160
+    Lévy μ=2.0               34±  15 |    35±  14    425± 104 |   365±  96   1084± 224 |  1060± 210
+    Lévy μ=2.5               39±  13 |    40±  16    474± 139 |   439± 124   1327± 208 |  1277± 260
+    Lévy μ=3.0               48±  15 |    51±  17    553± 217 |   530± 179   1400± 163 |  1384± 235
+    
+    NetLogo, 'lejana', t_50: Lévy μ=1.5 = 408, caminata = 391, Mann-Whitney p = 0.32
+
+
+
+```python
+fig, axs = plt.subplots(1, 3, figsize=(17, 4.4), sharey=True)
+x = np.arange(len(ESTRATEGIAS))
+for ax, esc in zip(axs, ESCENARIOS):
+    py = [resultados[(esc, est)][:, 1].mean() for est in ESTRATEGIAS]
+    py_s = [resultados[(esc, est)][:, 1].std() for est in ESTRATEGIAS]
+    g = nl[nl["escenario-comida"] == esc].groupby("estrategia")["tick-50"]
+    nlm = [g.mean()[ETIQUETA[e]] for e in ESTRATEGIAS]
+    nls = [g.std()[ETIQUETA[e]] for e in ESTRATEGIAS]
+    ax.bar(x - 0.2, py, 0.4, yerr=py_s, capsize=3, label="Python (30 sim.)")
+    ax.bar(x + 0.2, nlm, 0.4, yerr=nls, capsize=3, label="NetLogo (30–120 sim.)")
+    ax.set_xticks(x, [ETIQUETA[e].replace("Lévy ", "") for e in ESTRATEGIAS], rotation=25)
+    ax.set_title(f"t_50, escenario '{esc}'")
+axs[0].set_ylabel("ticks hasta el 50 % de la comida")
+axs[0].legend()
+plt.tight_layout()
+plt.show()
+```
+
+
+    
+{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_22_0.png' | relative_url }}){% raw %}
+    
+
+
+**Lectura.** Las dos implementaciones coinciden muy bien en casi todo: los tiempos y su variabilidad son del mismo tamaño, y el orden de las estrategias es el mismo (cuanto mayor $\mu$, más lenta la colonia). La diferencia más notable está en la caminata original del escenario `lejana`: en NetLogo junta el 50 % de la comida más rápido (unos 390 ticks contra unos 490 en Python). La explicación más probable es la simplificación que hicimos en Python: allí todas las hormigas deciden con el estado al inicio del tick, mientras que en NetLogo actúan una tras otra y pueden oler la feromona que otra acaba de dejar, así que el reclutamiento hacia una fuente lejana es algo más eficiente. Con eso desaparece la pequeña ventaja de $\mu = 1.5$ que habíamos encontrado en ese escenario: en NetLogo los vuelos de Lévy no superan a la caminata original en ningún escenario.
+
+## 7. ¿En qué condiciones ganan los vuelos de Lévy?
+
+Lo que muestran las simulaciones en Python y en NetLogo (los valores exactos están en las tablas de arriba):
 
 1. **En el mundo original de NetLogo, ningún vuelo de Lévy supera de forma significativa a la caminata original.** Con $\mu = 1.5$ los resultados son parecidos (incluso un poco peores en el primer hallazgo del escenario original). Con $\mu = 2$, $2.5$ y $3$ las hormigas son claramente más lentas en los tres escenarios, y cuanto mayor es $\mu$, peor les va.
 2. **La razón es contra qué estamos comparando.** La caminata original no es browniana: es una caminata correlacionada con una longitud de persistencia de unos 50 pasos, comparable al tamaño del mundo. Ya tiene la ventaja que se le atribuye a los vuelos de Lévy: no regresa sobre sus pasos. Un vuelo de Lévy con $\mu = 3$, en cambio, consiste casi siempre en pasos de 1 o 2 parcelas con una dirección completamente nueva; es lo más parecido a una caminata **browniana** y resulta la peor estrategia en todos los escenarios. Si comparamos Lévy contra el movimiento casi browniano ($\mu = 1.5$ o $2$ contra $\mu = 3$), sí se reproduce la predicción teórica: los vuelos de Lévy encuentran la comida mucho antes.
-3. **La única situación en la que Lévy tiende a ganar es con comida escasa y lejana, y con $\mu$ pequeño.** En el escenario `lejana` del mundo original, con $\mu = 1.5$ las hormigas llevan el 50 % de la comida al nido antes que con la caminata original (alrededor de 400 contra 490 ticks). En el mundo grande con una sola fuente lejana, también la encuentran antes en promedio (alrededor de 900 contra 1 200 ticks). La diferencia en $t_{50}$ del mundo original es estadísticamente significativa ($p \approx 0.03$), pero la del primer hallazgo, la de $t_{90}$ y la del mundo grande no lo son ($p$ entre 0.07 y 0.34). Además hicimos muchas comparaciones a la vez, así que un solo $p \approx 0.03$ es evidencia débil. Con fuentes diminutas dispersas, la caminata original es igual o mejor.
+3. **La única pista de ventaja para Lévy aparece con comida escasa y lejana, y con $\mu$ pequeño, y es muy débil.** En Python, en el escenario `lejana`, con $\mu = 1.5$ las hormigas llevaban el 50 % de la comida al nido antes que con la caminata original (unos 400 contra 490 ticks, $p \approx 0.03$), pero esa diferencia **no se reproduce en NetLogo** (unos 410 contra 390 ticks), donde la caminata original recluta mejor. En el mundo grande con una sola fuente lejana (solo en Python), $\mu = 1.5$ encuentra la comida antes en promedio (unos 900 contra 1 200 ticks), pero sin significancia estadística ($p \approx 0.34$). Con fuentes diminutas dispersas, la caminata original es igual o mejor.
 4. **Con comida abundante y cercana, manda la feromona.** Las primeras fuentes se encuentran rápido con cualquier estrategia; lo que determina el forrajeo es el reclutamiento por rastros, que es igual para todas. Las diferencias aparecen cuando una fuente se agota y las hormigas tienen que buscar la siguiente.
 5. **Las paredes** cortan los vuelos largos: en un mundo cerrado y pequeño, la ventaja potencial de los pasos largos se pierde.
 
-**Respuesta.** Los vuelos de Lévy superan a una búsqueda **sin memoria de dirección** (browniana) cuando los recursos son escasos, dispersos y lejanos, el espacio es grande comparado con el número de buscadores y no hay pistas (feromona) que guíen la búsqueda. Contra la caminata del modelo de NetLogo, que ya es muy persistente, la ventaja solo aparece, y de forma débil, con $\mu$ pequeño (movimiento casi balístico) y comida escasa y lejana, lo que concuerda con la teoría para recursos que se encuentran una sola vez. La moraleja va más allá de las hormigas: "los vuelos de Lévy son más eficientes" siempre significa "más eficientes **que cierta alternativa, en cierto entorno**". Los estudios de campo enfrentan exactamente este problema al decidir si un animal "hace" vuelos de Lévy.
+**Respuesta.** Los vuelos de Lévy superan a una búsqueda **sin memoria de dirección** (browniana) cuando los recursos son escasos, dispersos y lejanos, el espacio es grande comparado con el número de buscadores y no hay pistas (feromona) que guíen la búsqueda. Contra la caminata del modelo de NetLogo, que ya es muy persistente, **no encontramos una ventaja robusta**: lo más cercano es $\mu$ pequeño (movimiento casi balístico) con comida escasa y lejana, una tendencia que no sobrevive al pasar de Python a NetLogo. Que lo mejor sea moverse casi en línea recta concuerda con la teoría para recursos que se encuentran una sola vez. La moraleja va más allá de las hormigas: "los vuelos de Lévy son más eficientes" siempre significa "más eficientes **que cierta alternativa, en cierto entorno**". Los estudios de campo enfrentan exactamente este problema al decidir si un animal "hace" vuelos de Lévy.
 
 **Referencias:** Wilensky, U. (1997). NetLogo Ants model. Viswanathan, G. M. et al. (1999). Optimizing the success of random searches. *Nature* 401: 911–914. Edwards, A. M. et al. (2007). Revisiting Lévy flight search patterns of wandering albatrosses, bumblebees and deer. *Nature* 449: 1044–1048. Sims, D. W. et al. (2008). *Nature* 451: 1098–1102. Humphries, N. E. et al. (2010). *Nature* 465: 1066–1069. Harris, T. H. et al. (2012). *Nature* 486: 545–548.
 {% endraw %}
