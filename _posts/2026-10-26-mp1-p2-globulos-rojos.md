@@ -29,7 +29,7 @@ $$
 2. Comportamiento a largo plazo: equilibrios, estabilidad, comparación de $p(x)$ con $d(x) = c x$ y diagramas de bifurcación.
 3. Un retraso en la producción.
 4. Comparación con el modelo de Tetschke et al. (2018).
-5. Parámetros fisiológicos y recuperación después de una donación de sangre.
+5. Parámetros del artículo traducidos a nuestro modelo: recuperación después de una donación.
 
 
 ```python
@@ -437,110 +437,211 @@ for vida_media in [120, 60, 30, 15]:
 
 ## 4. Comparación con Tetschke et al. (2018)
 
-> ⚠️ **Advertencia.** No tuvimos acceso al texto del artículo al preparar esta entrada. La descripción siguiente es **de memoria** y puede contener imprecisiones; antes de usarla, verifícala con el original: Tetschke, M., Lilienthal, P., Pottgiesser, T., Fischer, T., Schalk, E., & Sager, S. (2018). *Mathematical Modeling of RBC Count Dynamics after Blood Loss.* Processes, 6(9), 157. doi:10.3390/pr6090157.
+Tetschke, Lilienthal, Pottgiesser, Fischer, Schalk y Sager (2018), *Mathematical Modeling of RBC Count Dynamics after Blood Loss*, Processes 6(9): 157, proponen un modelo **deliberadamente simple** para poder personalizarlo con pocos datos clínicos. Su motivación a largo plazo es planear las sangrías (flebotomías) de pacientes con policitemia vera.
 
-Hasta donde recordamos, el artículo:
+**El modelo.** Tres compartimentos de células en tiempo continuo:
 
-* Plantea un modelo en **tiempo continuo** (ecuaciones diferenciales ordinarias), no una ecuación en diferencias.
-* Divide la línea de producción en **varios compartimentos** que siguen la maduración de las células: progenitores en la médula, precursores (eritroblastos), reticulocitos y eritrocitos maduros en la sangre. Las células pasan de un compartimento al siguiente con ciertas tasas, y esa cadena produce de manera natural un **retraso** de varios días entre la señal y la llegada de células nuevas a la sangre.
-* Incluye explícitamente la **eritropoyetina (EPO)**: una pérdida de sangre reduce el transporte de oxígeno, el riñón aumenta la producción de EPO y la EPO estimula la proliferación de los progenitores. La EPO es una variable más del sistema, con su propia ecuación.
-* Modela la pérdida de sangre (por ejemplo, una donación) como una perturbación y **ajusta los parámetros a mediciones** de personas que perdieron sangre, para describir y predecir la recuperación individual.
+* $x_1$: progenitores que proliferan en respuesta a la eritropoyetina (EPO), como las CFU-E y los primeros eritroblastos. Permanecen en promedio 8 días ($k_1 = 1/8$ día⁻¹).
+* $x_2$: precursores que ya no responden a la EPO (eritroblastos tardíos y reticulocitos en la médula). Permanecen en promedio 6 días ($k_2 = 1/6$ día⁻¹).
+* $x_3$: eritrocitos (y reticulocitos) en la sangre, que mueren con tasa $\alpha = 1/120$ día⁻¹. En la práctica $x_3$ se mide como **masa total de hemoglobina** (tHb, en gramos), que es proporcional al número de eritrocitos.
+
+$$
+\begin{aligned}
+\dot x_1 &= \beta\,(X_0 - k_1 x_1) + F_b(x_3)\,x_1,\\
+\dot x_2 &= \beta\,(k_1 x_1 - k_2 x_2),\\
+\dot x_3 &= \beta\,(k_2 x_2 - \alpha x_3),
+\end{aligned}
+\qquad
+F_b(x_3) = \gamma\,\frac{\mathit{Base} - x_3}{\mathit{Base}} .
+$$
+
+Aquí $X_0$ es un flujo constante de células que entran desde las etapas tempranas (BFU-E), $\mathit{Base}$ es el valor normal de $x_3$ de cada persona (su equilibrio), $\beta$ es un factor que acelera o frena toda la maduración y $\gamma$ mide la fuerza de la respuesta a la pérdida de sangre. **La EPO no aparece como variable**: su efecto está resumido en la retroalimentación lineal $F_b$, que hace proliferar más a $x_1$ cuando $x_3$ está por debajo de lo normal. Los autores argumentan que la EPO fluctúa mucho y casi nunca se mide en la clínica, así que un modelo con EPO explícita tendría parámetros imposibles de estimar.
+
+**Datos y parámetros.** Usan las mediciones de tHb de 29 hombres sanos antes y después de donar una unidad de sangre (Pottgiesser et al., 2008), con unas 8 o 9 mediciones por persona. Fijan $k_1$, $k_2$ y $\alpha$ con valores de la literatura y estiman solo $\beta$ y $\gamma$, que distinguen a una persona de otra. Con un modelo de efectos mixtos obtienen valores de población $\beta = 1.02 \pm 0.15$ y $\gamma = 0.46 \pm 0.07$ día⁻¹, con una variabilidad entre personas de más del 40 %. También estiman $\beta$ y $\gamma$ por separado para cada persona; las recuperaciones van de unos 20 a unos 60 días.
+
+**Análisis.** Linealizan alrededor del equilibrio y, con la fórmula de Cardano, encuentran que no hay oscilaciones si $\gamma \le 0.263\,\beta - 0.0003$ y que el equilibrio es estable si $\gamma \le 4.9\,\beta$. Como unas oscilaciones pequeñas son fisiológicamente aceptables, proponen la condición relajada $\gamma \le 0.5\,\beta$.
 
 **Diferencias principales con nuestro modelo:**
 
-| | Modelo del enunciado | Tetschke et al. (2018), según lo recordamos |
+| | Modelo del enunciado | Tetschke et al. (2018) |
 |---|---|---|
 | Tiempo | discreto (días) | continuo (EDO) |
-| Variables | una ($x_n$) | varias: compartimentos de maduración y EPO |
-| Regulación | implícita, resumida en la forma de $p(x)$ | explícita, a través de la EPO |
-| Retraso | ninguno (o un retraso fijo $k$ si lo añadimos) | distribuido, a través de la cadena de compartimentos |
-| Parámetros | genéricos | ajustados a datos clínicos |
+| Variables | una ($x_n$) | tres compartimentos: dos en la médula y uno en la sangre |
+| Producción | $p(x_n)$, una función no lineal (Ricker o Hill) | flujo constante $X_0$ más proliferación de $x_1$ amplificada por $F_b$ |
+| Regulación | implícita en la forma de $p$ | retroalimentación lineal $F_b$, que actúa sobre las células sensibles a la EPO, no sobre la producción final |
+| Retraso | ninguno (o uno fijo de $k$ días si lo añadimos) | distribuido: unos 14 días de tránsito por $x_1$ y $x_2$ |
+| Parámetros | genéricos | $k_1$, $k_2$, $\alpha$ fijos; $\beta$, $\gamma$ ajustados a cada persona |
+| Variable medida | número de células | masa de hemoglobina (tHb) |
 
-En resumen: nuestro $p(x)$ es una **caja negra** que condensa en una sola función toda la cadena "pocos glóbulos rojos → poco oxígeno → más EPO → más proliferación → más células, días después". El artículo abre esa caja.
-
-## 5. Adaptando parámetros: recuperación después de una donación
-
-Obtener parámetros es difícil, pero algunos son bien conocidos en fisiología y los podemos traducir a nuestro modelo (como no tenemos los valores del artículo, usamos datos fisiológicos generales; los marcados como *supuesto* son elecciones nuestras):
-
-| Cantidad | Valor | Cómo entra en el modelo |
-|---|---|---|
-| Vida media de un eritrocito | ≈ 120 días | $c = 1/120$ por día |
-| Número total de eritrocitos | ≈ 2.5 × 10¹³ | unidad de $x$: medimos $x$ relativo a lo normal, $x^{\ast} = 1$ |
-| Producción diaria normal | $c\,x^{\ast}$ ≈ 2 × 10¹¹ células/día | se obtiene sola del equilibrio |
-| Tiempo de maduración | ≈ 5–7 días | retraso $k = 6$ |
-| Producción máxima en anemia | ≈ 6 veces la normal (*supuesto*) | $b = 6c$ |
-| Una donación | ≈ 500 ml de ≈ 5 l de sangre ≈ 10 % | condición inicial $x = 0.9$ |
-| Recuperación tras una donación | del orden de un mes o más (*a verificar*) | sirve para **calibrar** $m$ |
-
-El único parámetro que nos falta es $m$, la "abruptez" de la respuesta. Lo calibramos para que, después de perder el 10 %, la población recupere el 90 % del déficit en unos 36 días (orden de magnitud reportado en estudios de recuperación de la masa de hemoglobina tras una donación; **valor a verificar**).
+Hay un parecido de fondo: los dos modelos tienen una destrucción lineal de los eritrocitos ($c = \alpha = 1/120$) y una producción que aumenta cuando faltan eritrocitos. La diferencia esencial es **dónde** actúa la regulación y **cuánto tarda** en notarse: en el modelo del enunciado la producción de hoy responde a los eritrocitos de hoy; en el de Tetschke, la respuesta se aplica a células que llegarán a la sangre unas dos semanas después.
 
 
 ```python
-from scipy.optimize import brentq   # encuentra raíces de funciones de una variable
+# ============================================================
+# El modelo de Tetschke et al. (2018) con sus parámetros
+# ============================================================
+from scipy.integrate import solve_ivp
 
-c, b, k = 1 / 120, 6 / 120, 6
-x_donacion = 0.9          # después de donar queda el 90 % de lo normal
-
-
-def dias_para_recuperar(m, fraccion=0.9, retraso=k):
-    """
-    Días hasta recuperar `fraccion` del déficit tras la donación, con Hill (exponente m)
-    y retraso `retraso`. Suponemos que antes de la donación la población estaba en
-    equilibrio, así que la historia es x = 1 hasta el día -1 y x = 0.9 el día 0.
-    """
-    p = lambda x: p2(x, b, theta_para_equilibrio_1(m), m)
-    historia = np.ones(retraso + 1)
-    historia[-1] = x_donacion
-    tray = iterar_con_retraso(c, p, retraso, historia, 2000)[retraso:]   # desde el día 0
-    meta = 1 - (1 - fraccion) * (1 - x_donacion)                        # 0.99
-    return np.argmax(tray >= meta)
+K1, K2, ALFA = 1 / 8, 1 / 6, 1 / 120   # tasas de tránsito y de muerte (por día), Tabla 1
+# (En la Tabla 1 del artículo alpha aparece con signo negativo; en las ecuaciones (1)
+#  es claramente la tasa de muerte positiva 1/120, que es la que usamos.)
+BASE = 885.42                           # tHb normal del sujeto ejemplo de la Tabla 1 (g)
+X0 = ALFA * BASE                        # flujo de entrada que hace de Base un equilibrio
 
 
-# Buscamos m tal que la recuperación tarde 36 días (función de m continua a pedazos;
-# usamos brentq sobre la diferencia, en un intervalo donde cambia de signo).
-m_cal = brentq(lambda m: dias_para_recuperar(m) - 36.5, 2, 60)
-print(f"m calibrado ≈ {m_cal:.1f}")
-print(f"factor de convergencia sin retraso f'(x*) = {1 - c * m_cal * (1 - c / b):.3f}")
-print(f"max|λ| con retraso de {k} días = {radio_espectral(c, beta_hill(m_cal), k):.4f}")
+def tetschke(t, x, beta, gamma):
+    """Lado derecho de las ecuaciones (1) del artículo."""
+    x1, x2, x3 = x
+    Fb = gamma * (BASE - x3) / BASE     # retroalimentación lineal (ecuación 2)
+    return [beta * (X0 - K1 * x1) + Fb * x1,
+            beta * (K1 * x1 - K2 * x2),
+            beta * (K2 * x2 - ALFA * x3)]
 
-fig, ax = plt.subplots(figsize=(8, 4.5))
-for m_q, ret, etiqueta in [(m_cal, k, f"m = {m_cal:.1f}, retraso {k} días"),
-                           (m_cal, 0, f"m = {m_cal:.1f}, sin retraso"),
-                           (3.0, k, f"m = 3 (regulación suave), retraso {k} días")]:
-    p = lambda x, m_q=m_q: p2(x, b, theta_para_equilibrio_1(m_q), m_q)
-    historia = np.ones(ret + 1)
-    historia[-1] = x_donacion
-    tray = iterar_con_retraso(c, p, ret, historia, 150)[ret:]
-    ax.plot(np.arange(0, 151), 100 * tray, label=etiqueta)
+
+equilibrio = np.array([ALFA / K1, ALFA / K2, 1.0]) * BASE      # ecuación (3)
+print("Equilibrio (x1, x2, x3) =", np.round(equilibrio, 2), " (Tabla 1: 59.03, 44.27, 885.42)")
+
+# Donación de sangre: en t = 0 se pierde ~10.7 % de x3 (en el artículo, de 885 a ~790 g);
+# la médula (x1, x2) no cambia en ese instante.
+PERDIDA = 0.107
+
+
+def recuperacion(beta, gamma, T=150):
+    """Integra el modelo después de la donación. Regresa t y x3 / Base."""
+    x_ini = equilibrio * np.array([1, 1, 1 - PERDIDA])
+    sol = solve_ivp(tetschke, (0, T), x_ini, args=(beta, gamma), max_step=0.1, dense_output=True)
+    t = np.linspace(0, T, 1501)
+    return t, sol.sol(t)[2] / BASE
+
+
+def dias_90(t, y):
+    """Días hasta recuperar el 90 % del déficit."""
+    return t[np.argmax(y >= 1 - 0.1 * PERDIDA)]
+
+
+fig, ax = plt.subplots(figsize=(8.5, 4.5))
+casos = [(1.02, 0.46, "población (β = 1.02, γ = 0.46)"),
+         (0.867, 0.388, "sujeto 02 (β = 0.87, γ = 0.39)"),
+         (0.891, 0.356, "sujeto 09 (β = 0.89, γ = 0.36)"),
+         (1.409, 1.003, "sujeto 12 (β = 1.41, γ = 1.00)"),
+         (2.798, 0.661, "sujeto 20 (β = 2.80, γ = 0.66)")]
+for beta, gamma, etiqueta in casos:
+    t, y = recuperacion(beta, gamma)
+    ax.plot(t, 100 * y, lw=2.5 if "población" in etiqueta else 1.2, label=etiqueta)
+    sin_osc = gamma <= 0.263 * beta - 0.0003
+    print(f"{etiqueta:34s}: 90 % del déficit en {dias_90(t, y):5.1f} días, máximo = {100 * y.max():.2f} %"
+          f" -> {'sin oscilaciones' if sin_osc else 'oscila un poco'} según la condición (9)")
 ax.axhline(100, color="gray", ls="--")
 ax.set_xlabel("días después de la donación")
-ax.set_ylabel("glóbulos rojos [% de lo normal]")
-ax.set_title("Recuperación después de perder el 10 % de la sangre")
-ax.legend()
+ax.set_ylabel("tHb [% de Base]")
+ax.set_title("Modelo de Tetschke et al. con sus parámetros estimados")
+ax.legend(fontsize=9)
 plt.show()
 ```
 
-    m calibrado ≈ 6.7
-    factor de convergencia sin retraso f'(x*) = 0.954
-    max|λ| con retraso de 6 días = 0.9349
+    Equilibrio (x1, x2, x3) = [ 59.03  44.27 885.42]  (Tabla 1: 59.03, 44.27, 885.42)
+    población (β = 1.02, γ = 0.46)    : 90 % del déficit en  39.1 días, máximo = 100.68 % -> oscila un poco según la condición (9)
+    sujeto 02 (β = 0.87, γ = 0.39)    : 90 % del déficit en  46.3 días, máximo = 100.66 % -> oscila un poco según la condición (9)
+
+
+    sujeto 09 (β = 0.89, γ = 0.36)    : 90 % del déficit en  50.0 días, máximo = 100.38 % -> oscila un poco según la condición (9)
+    sujeto 12 (β = 1.41, γ = 1.00)    : 90 % del déficit en  19.5 días, máximo = 102.46 % -> oscila un poco según la condición (9)
+    sujeto 20 (β = 2.80, γ = 0.66)    : 90 % del déficit en  26.8 días, máximo = 100.00 % -> sin oscilaciones según la condición (9)
 
 
 
     
-{% endraw %}![Figura]({{ '/assets/images/mp1-p2-globulos-rojos/mp1-p2-globulos-rojos_16_1.png' | relative_url }}){% raw %}
+{% endraw %}![Figura]({{ '/assets/images/mp1-p2-globulos-rojos/mp1-p2-globulos-rojos_15_2.png' | relative_url }}){% raw %}
     
 
 
-**Lectura.** Con una regulación suave ($m$ pequeño) la recuperación tomaría muchos meses: con $c = 1/120$, la población solo puede recuperarse rápido si la médula multiplica su producción ante una pérdida pequeña, es decir, si la respuesta es abrupta. El valor calibrado, $m \approx 7$, está muy por debajo del umbral de inestabilidad con 6 días de retraso ($m \approx 37$), así que la recuperación es suave y sin sobrepaso visible; el retraso solo hace que la primera semana la recuperación sea más lenta. Esto es consistente con lo que se observa en personas sanas, donde no hay oscilaciones.
+El modelo reproduce lo que reportan los autores: con los parámetros de población, la persona recupera el 90 % del déficit en unas 6 semanas, y los distintos sujetos van de unas 3 a unas 7 semanas. Como $\gamma = 0.46$ es mayor que $0.263\,\beta$, la población tiene un sobrepaso pequeño, de menos del 1 %, permitido por la condición relajada $\gamma \le 0.5\beta$. El sujeto 12, con $\gamma$ grande, se recupera más rápido y se pasa más.
 
-**Limitaciones honestas:** el valor de $b$ y el tiempo de recuperación usados son supuestos razonables, no valores medidos que hayamos verificado; el modelo de un solo compartimento no distingue reticulocitos de eritrocitos maduros (los reticulocitos son lo primero que aumenta tras una pérdida), y la donación en realidad también reduce plasma, que se repone en uno o dos días. Un modelo como el de Tetschke et al. existe precisamente para tratar estos detalles.
+## 5. Adaptando los parámetros del artículo a nuestro modelo
+
+Podemos "traducir" los parámetros de Tetschke et al. a nuestro modelo discreto $x_{n+1} = (1-c)x_n + p(x_{n-k})$, midiendo $x$ en unidades de lo normal ($x^{\ast} = 1$):
+
+1. **Destrucción.** $c = \alpha = 1/120$ por día: es el mismo parámetro en los dos modelos.
+2. **Retraso.** En el artículo, una célula tarda en promedio $1/k_1 + 1/k_2 = 8 + 6 = 14$ días (con $\beta \approx 1$) en ir de la etapa sensible a la EPO a la sangre. Usamos $k = 14$.
+3. **Fuerza de la respuesta.** Si los eritrocitos se mantuvieran una fracción $f$ por debajo de lo normal, en el modelo de Tetschke $x_1$ llegaría a $\beta X_0/(\beta k_1 - \gamma f)$, y la producción aumentaría en un factor $1/(1 - \gamma f/(\beta k_1)) \approx 1 + G f$, con
+
+$$
+G = \frac{\gamma}{\beta\,k_1} = \frac{0.46}{1.02 \times 0.125} \approx 3.6 .
+$$
+
+Es decir, **un déficit de 10 % aumenta la producción en alrededor de 36 %**. En nuestro modelo esa ganancia es la pendiente de $p$ en el equilibrio: $p(x) \approx c\,[1 + G(1 - x)]$, así que $p'(x^{\ast}) = -cG$. Para la función de Hill, en la sección 2 vimos que $p_2'(x^{\ast}) = c\,[1 - m(1 - c/b)]$. Igualando,
+
+$$
+m = \frac{1 + G}{1 - c/b}.
+$$
+
+Con $b = 6c$ (una producción máxima en anemia extrema de unas 6 veces la normal, que es un supuesto nuestro) obtenemos $m \approx 5.5$.
+
+
+```python
+c = ALFA
+b = 6 * c
+G = 0.46 / (1.02 * K1)
+m_tet = (1 + G) / (1 - c / b)
+print(f"G = gamma / (beta k1) = {G:.2f}  ->  m = {m_tet:.2f}")
+print(f"Estabilidad con k = 14: max|lambda| = {radio_espectral(c, beta_hill(m_tet), 14):.4f} (< 1: estable)")
+m_critico = next(m for m in np.arange(1, 100, 0.1) if radio_espectral(c, beta_hill(m), 14) > 1)
+print(f"Con k = 14 el equilibrio se vuelve inestable para m > {m_critico:.1f}")
+
+
+def recuperacion_discreta(m, retraso, T=150):
+    """Modelo discreto con Hill (exponente m) y retraso; pérdida de PERDIDA en el día 0."""
+    p = lambda x: p2(x, b, theta_para_equilibrio_1(m), m)
+    historia = np.ones(retraso + 1)
+    historia[-1] = 1 - PERDIDA
+    return iterar_con_retraso(c, p, retraso, historia, T)[retraso:]
+
+
+t_ode, y_ode = recuperacion(1.02, 0.46)
+fig, ax = plt.subplots(figsize=(8.5, 4.5))
+ax.plot(t_ode, 100 * y_ode, "k", lw=2.5, label="Tetschke et al. (población)")
+print(f"\n{'Tetschke et al. (EDO, población)':38s}: 90 % del déficit en {dias_90(t_ode, y_ode):5.1f} días, máximo = {100 * y_ode.max():.2f} %")
+for retraso in [0, 6, 14]:
+    y = recuperacion_discreta(m_tet, retraso)
+    dias = np.arange(len(y))
+    ax.plot(dias, 100 * y, "o-", ms=2.5, lw=1, label=f"discreto, m = {m_tet:.1f}, retraso k = {retraso}")
+    print(f"{'discreto, retraso k = ' + str(retraso):38s}: 90 % del déficit en {np.argmax(y >= 1 - 0.1 * PERDIDA):5d} días, máximo = {100 * y.max():.2f} %")
+ax.axhline(100, color="gray", ls="--")
+ax.set_xlabel("días después de la donación")
+ax.set_ylabel("eritrocitos / tHb [% de lo normal]")
+ax.set_title("Nuestro modelo con parámetros traducidos del artículo")
+ax.legend(fontsize=9)
+plt.show()
+```
+
+    G = gamma / (beta k1) = 3.61  ->  m = 5.53
+    Estabilidad con k = 14: max|lambda| = 0.9383 (< 1: estable)
+    Con k = 14 el equilibrio se vuelve inestable para m > 17.5
+    
+    Tetschke et al. (EDO, población)      : 90 % del déficit en  39.1 días, máximo = 100.68 %
+    discreto, retraso k = 0               : 90 % del déficit en    56 días, máximo = 99.97 %
+    discreto, retraso k = 6               : 90 % del déficit en    48 días, máximo = 99.99 %
+    discreto, retraso k = 14              : 90 % del déficit en    38 días, máximo = 100.48 %
+
+
+
+    
+{% endraw %}![Figura]({{ '/assets/images/mp1-p2-globulos-rojos/mp1-p2-globulos-rojos_18_1.png' | relative_url }}){% raw %}
+    
+
+
+**Lectura.** Con los parámetros traducidos del artículo y el retraso de 14 días, nuestro modelo discreto de una sola variable reproduce bien lo esencial de la recuperación del modelo de tres compartimentos: el mismo tiempo de recuperación (unas 6 semanas) y un sobrepaso pequeño parecido. La forma al inicio sí difiere. Con un retraso **fijo**, durante las primeras dos semanas llegan células "encargadas" antes de la donación y la recuperación es casi plana; luego la respuesta llega de golpe. En los compartimentos, el retraso está **distribuido**: algunas células llegan antes y otras después, y la curva sube suavemente. Sin retraso, la recuperación empieza más rápido pero termina más lenta y sin sobrepaso. El retraso produce el sobrepaso porque la médula sigue respondiendo a un déficit de hace dos semanas, que era mayor que el actual.
+
+Esto también conecta con la sección 3: con $m \approx 5.5$ y $k = 14$ estamos lejos de la región de oscilaciones sostenidas, que con este retraso empieza alrededor de $m \approx 17$ (mapa de estabilidad). Para que la regulación de una persona sana produjera oscilaciones, la respuesta a un déficit tendría que ser unas tres veces más fuerte de lo que estiman los datos.
+
+**Limitaciones:** el valor $b = 6c$ es un supuesto nuestro (solo importa la pendiente de $p$ en el equilibrio, pero $m$ depende de $b$). Un retraso fijo de 14 días es más brusco que el retraso distribuido de los compartimentos, lo que favorece las oscilaciones. Y, como notan los propios autores, en varios sujetos el mínimo de tHb no ocurre justo después de la donación sino una semana después; ninguno de los dos modelos captura esa fase.
 
 ## Conclusiones
 
 1. $a$ y $b$ (o $b$ en Hill) son la producción por célula en anemia extrema; $b$ en Ricker y $\theta$ en Hill fijan la escala de la población normal; $m$ fija qué tan abrupta es la regulación.
 2. Hay un equilibrio positivo si la producción en anemia supera la destrucción. Es estable salvo que la regulación sea muy abrupta: $c\ln(a/c) > 2$ (Ricker) o $cm(1 - c/b) > 2$ (Hill) dan duplicaciones de periodo y caos. Con $c = 1/120$ esos umbrales son inalcanzables.
 3. Un retraso de pocos días, en cambio, sí puede producir oscilaciones sostenidas (como en Mackey–Glass), sobre todo si aumenta la destrucción.
-4. El modelo de Tetschke et al. sustituye la función $p(x)$ por una cadena de compartimentos con regulación explícita por EPO y parámetros ajustados a datos.
+4. El modelo de Tetschke et al. sustituye la función $p(x)$ por tres compartimentos con una retroalimentación lineal sobre las células sensibles a la EPO, y ajusta dos parámetros por persona con datos de donadores. Traduciendo sus parámetros a nuestro modelo ($c = 1/120$, retraso de 14 días, $m \approx 5.5$), el modelo discreto reproduce bien su tiempo de recuperación de unas 6 semanas y su pequeño sobrepaso, aunque no la forma suave del inicio.
 
-**Referencias:** de Vries et al. (2006), *A Course in Mathematical Biology*, SIAM, pp. 9–47; Mackey, M. & Glass, L. (1977), *Science* 197: 287–289; Tetschke et al. (2018), *Processes* 6(9): 157.
+**Referencias:** de Vries et al. (2006), *A Course in Mathematical Biology*, SIAM, pp. 9–47; Mackey, M. & Glass, L. (1977), *Science* 197: 287–289; Tetschke, M. et al. (2018), *Processes* 6(9): 157, doi:10.3390/pr6090157; Pottgiesser, T. et al. (2008), *Transfusion* 48: 1390–1397.
 {% endraw %}

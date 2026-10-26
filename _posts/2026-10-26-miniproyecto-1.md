@@ -21,7 +21,7 @@ Todo el código está comentado en español y usa semillas fijas, así que al ej
 ## Notas importantes
 
 * **Problema 1:** en lugar de datos reales del experimento de memorización usamos **datos simulados** de un participante virtual cuyo valor de κ conocemos. Así se puede comprobar si los métodos de estimación recuperan el valor correcto.
-* **Problema 2:** la comparación con Tetschke et al. (2018) está escrita **de memoria**, sin acceso al artículo, y está marcada como tal: hay que verificarla con el original.
+* **Problema 2:** la comparación con Tetschke et al. (2018) se basa en el artículo: reproduce su modelo con los parámetros que estiman y los traduce al modelo discreto del enunciado.
 * **Problema 4:** usa los datos reales de Benzekry et al. (2014), copiados en `_data/benzekry2014_LLC_sc_CCSB.csv`. Los parámetros "representativos" del enunciado ($K_d \approx 15$ mm, $a \approx 0.25$ día⁻¹) hacen crecer los tumores mucho más rápido que en estos datos; la entrada lo muestra y agrega un ajuste como extra.
 * **Problemas 6 y 7:** además de los notebooks (que reimplementan los modelos de NetLogo en Python para poder hacer estadística con cientos de simulaciones), están los modelos de NetLogo modificados: [`Ants-Levy.nlogo`]({{ '/assets/netlogo/Ants-Levy.nlogo' | relative_url }}) y [`Wolf-Sheep-Rebano.nlogo`]({{ '/assets/netlogo/Wolf-Sheep-Rebano.nlogo' | relative_url }}). Se escribieron sin poder ejecutar NetLogo, así que **no están probados**.
 
