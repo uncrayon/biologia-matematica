@@ -3,7 +3,7 @@ layout: post
 title: "Miniproyecto 1 · Problema 4: crecimiento tumoral, tres modelos para el diámetro"
 date: 2026-10-26 00:04:00 -0600
 categories: miniproyecto-1
-excerpt: "Comparamos los modelos lineal, exponencial y de Gompertz para el diámetro de un tumor: interpretación biológica, equilibrios, el punto de máxima velocidad, la invariancia de Gompertz entre volumen y diámetro, y una comparación con datos simulados tipo carcinoma de Lewis."
+excerpt: "Comparamos los modelos lineal, exponencial y de Gompertz para el diámetro de un tumor: interpretación biológica, equilibrios, el punto de máxima velocidad, la invariancia de Gompertz entre volumen y diámetro, y una comparación con los datos reales de carcinoma de Lewis de Benzekry et al. (2014)."
 ---
 
 **Notebook:** [ver en GitHub](https://github.com/uncrayon/biologia-matematica/blob/main/_notebooks/mp1-p4-crecimiento-tumoral.ipynb) · [abrir en Colab](https://colab.research.google.com/github/uncrayon/biologia-matematica/blob/main/_notebooks/mp1-p4-crecimiento-tumoral.ipynb)
@@ -17,7 +17,7 @@ El tamaño de un tumor sólido se mide con calibrador o con imagen: se registra 
 | Exponencial | $\dot d = \lambda d$ | $d(t) = d_0 e^{\lambda t}$ |
 | Gompertz | $\dot d = a\,d\ln(K_d/d)$ | $d(t) = K_d\left(d_0/K_d\right)^{e^{-at}}$ |
 
-**Sobre los datos.** El enunciado sugiere descargar el conjunto de Benzekry et al. (2014) de Zenodo (carcinoma pulmonar de Lewis, 20 ratones, días 4–22). Al preparar esta entrada no pudimos descargarlo, así que en la sección 3 usamos **datos simulados** con la misma estructura (20 ratones, volúmenes en mm³ medidos entre los días 4 y 22) generados con el modelo de Gompertz y los parámetros representativos del enunciado, más variabilidad entre ratones y error de medición. **No son los datos reales**: sirven para ilustrar el procedimiento. Para usar los reales basta con reemplazar la tabla `datos` por la del archivo de Zenodo.
+**Sobre los datos.** En la sección 3 usamos los datos reales de Benzekry et al. (2014): carcinoma pulmonar de Lewis en 20 ratones, con el volumen del tumor medido entre los días 4 y 22. Spoiler: los parámetros "representativos" del enunciado describen tumores que crecen mucho más rápido que los de estos datos, y eso cambia la respuesta a "¿qué modelo reproduce la desaceleración?".
 
 **Contenido**
 
@@ -142,61 +142,80 @@ print("d' - a d ln(Kd/d) =", diferencia, " (cero: la invariancia se cumple)")
 
 ## 3. Datos y parámetros
 
-### Datos simulados tipo Benzekry et al. (2014)
+### Los datos de Benzekry et al. (2014)
 
-Generamos 20 "ratones". Para cada uno sorteamos su propia capacidad de carga y su propia tasa alrededor de los valores representativos del enunciado ($K_d \approx 15$ mm, $a \approx 0.25$ día⁻¹), así como el diámetro en el día 4 (alrededor de 4 mm). El volumen "medido" cada dos días tiene un error multiplicativo de alrededor del 15 %, típico de las mediciones con calibrador. Igual que en el experimento, registramos **volúmenes** en mm³ y luego los convertimos a diámetro con $d = (6V/\pi)^{1/3}$.
+Usamos el conjunto de datos de carcinoma pulmonar de Lewis (LLC) implantado de forma subcutánea en 20 ratones (archivo `LLC_sc_CCSB` del repositorio de Zenodo de Benzekry et al., 2014). Cada fila es una medición: el número de ratón (`ID`), el día (`Time`) y el volumen del tumor en mm³ (`Vol`). Una copia está en [`_data/benzekry2014_LLC_sc_CCSB.csv`](https://github.com/uncrayon/biologia-matematica/blob/main/_data/benzekry2014_LLC_sc_CCSB.csv).
+
+Dos detalles de los datos importan para el análisis:
+
+* **No todos los ratones se midieron los mismos días.** Hay 173 mediciones en días entre el 4 y el 22, con huecos (por ejemplo, casi nadie se midió los días 8 a 10).
+* **Los ratones salen del estudio a distintos tiempos.** El volumen máximo registrado es de unos 1 500 mm³; lo más probable es que los ratones se retiraran al alcanzar un tamaño límite (un criterio ético habitual). Por eso, al final del estudio solo quedan los tumores que crecían **más lento**, y cualquier promedio por día en esa etapa está sesgado hacia abajo.
+
+Igual que pide el enunciado, convertimos cada volumen a diámetro con $d = (6V/\pi)^{1/3}$ y usamos $t = \text{día} - 4$, de modo que $t = 0$ corresponde al primer día con datos (el único ratón medido ese día tenía justamente $d \approx 4$ mm, el $d_0$ del enunciado).
 
 
 ```python
-rng = np.random.default_rng(2014)   # semilla fija: datos reproducibles
+import pathlib
+import pandas as pd   # lectura de tablas (CSV)
 
-KD_REP, A_REP, D0_REP = 15.0, 0.25, 4.0   # valores representativos del enunciado
-n_ratones = 20
-dias = np.arange(4, 23, 2)               # días de medición: 4, 6, ..., 22
+# Si el notebook se ejecuta dentro del repositorio, leemos la copia local;
+# si no (por ejemplo, en Colab), la descargamos de GitHub.
+RUTA_LOCAL = pathlib.Path("../_data/benzekry2014_LLC_sc_CCSB.csv")
+URL = ("https://raw.githubusercontent.com/uncrayon/biologia-matematica/main/"
+       "_data/benzekry2014_LLC_sc_CCSB.csv")
+datos = pd.read_csv(RUTA_LOCAL if RUTA_LOCAL.exists() else URL)
 
-# Parámetros individuales: variación log-normal alrededor de los representativos.
-Kd_i = KD_REP * np.exp(rng.normal(0, 0.10, n_ratones))
-a_i = A_REP * np.exp(rng.normal(0, 0.15, n_ratones))
-d4_i = D0_REP * np.exp(rng.normal(0, 0.15, n_ratones))
+datos["d"] = (6 * datos["Vol"] / np.pi) ** (1 / 3)   # diámetro equivalente (mm)
+datos["t"] = datos["Time"] - 4                        # t = 0 en el día 4
 
-# Diámetro verdadero de cada ratón en cada día (t = 0 corresponde al día 4).
-d_verdadero = np.array([d_gompertz(dias - 4, d4_i[i], a_i[i], Kd_i[i]) for i in range(n_ratones)])
-V_verdadero = np.pi / 6 * d_verdadero**3
-# Volumen "medido": error multiplicativo log-normal de ~15 %.
-V_medido = V_verdadero * np.exp(rng.normal(0, 0.15, V_verdadero.shape))
+print(f"{len(datos)} mediciones de {datos['ID'].nunique()} ratones, días {datos['Time'].min()} a {datos['Time'].max()}")
+print(f"Volumen: de {datos['Vol'].min():.0f} a {datos['Vol'].max():.0f} mm^3"
+      f"  ->  diámetro: de {datos['d'].min():.1f} a {datos['d'].max():.1f} mm\n")
+print(datos.head(8).to_string(index=False))
 
-# Tabla de datos: una fila por ratón, una columna por día (volúmenes en mm^3).
-datos = V_medido
-print("Volúmenes simulados (mm^3), primeros 5 ratones:")
-print("día:   " + "".join(f"{x:8d}" for x in dias))
-for i in range(5):
-    print(f"ratón {i + 1:2d}" + "".join(f"{v:8.0f}" for v in datos[i]))
+# ¿Cuántos ratones se midieron cada día, y cuál es la mediana del diámetro?
+por_dia = datos.groupby("Time")["d"].agg(["count", "median"])
+print("\nRatones medidos y mediana del diámetro por día:")
+print(por_dia.T.round(1).to_string())
 
-# Conversión a diámetro.
-d_medido = (6 * datos / np.pi) ** (1 / 3)
+# Último día con medición de cada ratón: cuándo "sale" del estudio.
+ultimo = datos.groupby("ID")["Time"].max()
+print("\nÚltimo día medido (número de ratones):", ultimo.value_counts().sort_index().to_dict())
 ```
 
-    Volúmenes simulados (mm^3), primeros 5 ratones:
-    día:          4       6       8      10      12      14      16      18      20      22
-    ratón  1      79     293     400     769     899    1342    1347    1383    1305    1531
-    ratón  2      62     306     567     846    1795    2031    2138    1971    2514    2057
-    ratón  3      52     131     468     779    1364    1503    1610    1695    2025    1857
-    ratón  4      45     242     356     760    1286    1287    1538    1562    1861    1782
-    ratón  5      37     172     394     717     959    1866    1900    2036    2300    2138
+    173 mediciones de 20 ratones, días 4 a 22
+    Volumen: de 14 a 1492 mm^3  ->  diámetro: de 3.0 a 14.2 mm
+    
+     ID  Time       Vol         d  t
+      1     7   50.0218  4.571446  3
+      1    11  309.5190  8.392594  7
+      1    12  324.8960  8.529336  8
+      1    13  450.8420  9.513535  9
+      1    14  572.4510 10.301803 10
+      1    15  664.3370 10.825882 11
+      1    18 1151.6900 13.005059 14
+      1    19 1338.3800 13.672888 15
+    
+    Ratones medidos y mediana del diámetro por día:
+    Time     4    5    6     7    8    9    10    11    12    13    14    15    16    17    18    19    20    21    22
+    count   1.0  2.0  8.0  12.0  4.0  8.0  8.0  20.0  10.0  10.0  19.0  19.0   9.0   9.0  15.0   7.0   5.0   5.0   2.0
+    median  4.0  4.9  4.8   5.1  5.6  5.8  6.8   7.4   8.5   9.5  10.3  10.8  11.7  12.5  12.5  13.3  13.4  13.0  13.8
+    
+    Último día medido (número de ratones): {11: 1, 15: 1, 17: 3, 18: 5, 19: 2, 20: 3, 21: 3, 22: 2}
 
 
 
 ```python
 fig, axs = plt.subplots(1, 2, figsize=(13, 4.5))
-for i in range(n_ratones):
-    axs[0].plot(dias, datos[i], "o-", ms=3, lw=0.8, alpha=0.7)
-    axs[1].plot(dias, d_medido[i], "o-", ms=3, lw=0.8, alpha=0.7)
+for raton, grupo in datos.groupby("ID"):
+    axs[0].plot(grupo["Time"], grupo["Vol"], "o-", ms=3, lw=0.8, alpha=0.7)
+    axs[1].plot(grupo["Time"], grupo["d"], "o-", ms=3, lw=0.8, alpha=0.7)
 axs[0].set_ylabel("volumen $V$ [mm³]")
 axs[1].set_ylabel(r"diámetro $d = (6V/\pi)^{1/3}$ [mm]")
 for ax in axs:
     ax.set_xlabel("día")
-axs[0].set_title("Datos simulados: volumen")
-axs[1].set_title("Datos simulados: diámetro")
+axs[0].set_title("Benzekry et al. (2014), LLC subcutáneo: volumen")
+axs[1].set_title("El mismo conjunto en diámetro")
 plt.tight_layout()
 plt.show()
 ```
@@ -219,6 +238,7 @@ $$
 
 
 ```python
+KD_REP, A_REP, D0_REP = 15.0, 0.25, 4.0   # valores representativos del enunciado
 Kd_, a_, d0_ = KD_REP, A_REP, D0_REP
 
 
@@ -252,9 +272,9 @@ print(f"Gompertz tarda más ({t_dup:.2f} días) porque ya está desacelerando.")
     Gompertz tarda más (2.97 días) porque ya está desacelerando.
 
 
-### (iv) Los tres modelos durante 30 días
+### (iv) Los tres modelos durante 30 días, contra los datos
 
-Para que la comparación sea justa elegimos parámetros "comparables": los tres modelos parten de $d_0 = 4$ mm **con la misma velocidad inicial** que Gompertz. Así, $k = a d_0\ln(K_d/d_0)$ (mm/día) y $\lambda = a\ln(K_d/d_0)$ (día⁻¹). Sobre las curvas ponemos los datos simulados, con $t = \text{día} - 4$.
+Para que la comparación sea justa elegimos parámetros "comparables": los tres modelos parten de $d_0 = 4$ mm **con la misma velocidad inicial** que Gompertz. Así, $k = a d_0\ln(K_d/d_0)$ (mm/día) y $\lambda = a\ln(K_d/d_0)$ (día⁻¹). Sobre las curvas ponemos los datos reales.
 
 
 ```python
@@ -265,9 +285,7 @@ print(f"k = {k_:.3f} mm/día,  lambda = {lam_:.3f} 1/día")
 t = np.linspace(0, 30, 400)
 fig, axs = plt.subplots(1, 2, figsize=(13, 4.8))
 for ax in axs:
-    for i in range(n_ratones):
-        ax.plot(dias - 4, d_medido[i], "o", color="gray", ms=3, alpha=0.5)
-    ax.plot([], [], "o", color="gray", ms=3, label="datos simulados (20 ratones)")
+    ax.plot(datos["t"], datos["d"], "o", color="gray", ms=3, alpha=0.5, label="datos (20 ratones)")
     ax.plot(t, d_lineal(t, d0_, k_), "C1", lw=2, label="lineal")
     ax.plot(t, d_exponencial(t, d0_, lam_), "C2", lw=2, label="exponencial")
     ax.plot(t, d_gompertz(t, d0_, a_, Kd_), "C0", lw=2, label="Gompertz")
@@ -275,21 +293,21 @@ for ax in axs:
     ax.set_xlabel("$t$ = día − 4")
     ax.set_ylabel("diámetro $d$ [mm]")
 axs[0].set_ylim(0, 45)
-axs[0].set_title("Los tres modelos, 30 días")
+axs[0].set_title("Los tres modelos con los parámetros del enunciado")
 axs[0].legend(loc="upper left")
 axs[1].set_yscale("log")
 axs[1].set_title("Escala logarítmica: la exponencial es una recta")
 plt.tight_layout()
 plt.show()
 
-# Error de cada modelo (con los parámetros del enunciado, sin ajustar) contra
-# la mediana de los datos de cada día.
-mediana = np.median(d_medido, axis=0)
-for nombre, curva in [("lineal", d_lineal(dias - 4, d0_, k_)),
-                      ("exponencial", d_exponencial(dias - 4, d0_, lam_)),
-                      ("Gompertz", d_gompertz(dias - 4, d0_, a_, Kd_))]:
-    rmse = np.sqrt(np.mean((curva - mediana) ** 2))
-    print(f"{nombre:12s}: error cuadrático medio contra la mediana de los datos = {rmse:6.2f} mm")
+# Error de cada modelo (con los parámetros del enunciado, sin ajustar) en cada medición.
+for nombre, curva in [("lineal", d_lineal(datos["t"], d0_, k_)),
+                      ("exponencial", d_exponencial(datos["t"], d0_, lam_)),
+                      ("Gompertz", d_gompertz(datos["t"], d0_, a_, Kd_))]:
+    error = curva - datos["d"]
+    print(f"{nombre:12s}: error medio = {error.mean():+8.2f} mm, raíz del error cuadrático medio = {np.sqrt(np.mean(error**2)):8.2f} mm")
+print(f"\nDía 11 (t = 7): mediana de los datos = {por_dia.loc[11, 'median']:.1f} mm,"
+      f" Gompertz del enunciado = {d_gompertz(7, d0_, a_, Kd_):.1f} mm")
 ```
 
     k = 1.322 mm/día,  lambda = 0.330 1/día
@@ -301,40 +319,131 @@ for nombre, curva in [("lineal", d_lineal(dias - 4, d0_, k_)),
     
 
 
-    lineal      : error cuadrático medio contra la mediana de los datos =   5.78 mm
-    exponencial : error cuadrático medio contra la mediana de los datos = 557.22 mm
-    Gompertz    : error cuadrático medio contra la mediana de los datos =   0.63 mm
+    lineal      : error medio =    +7.10 mm, raíz del error cuadrático medio =     7.77 mm
+    exponencial : error medio =  +192.77 mm, raíz del error cuadrático medio =   338.31 mm
+    Gompertz    : error medio =    +3.15 mm, raíz del error cuadrático medio =     3.54 mm
+    
+    Día 11 (t = 7): mediana de los datos = 7.4 mm, Gompertz del enunciado = 11.9 mm
 
+
+**Los parámetros "representativos" no describen estos datos.** Con $a = 0.25$ día⁻¹, Gompertz predice que el tumor llega a unos 12 mm el día 11; la mediana real ese día es de 7.4 mm. Los tres modelos, con los parámetros del enunciado, crecen **demasiado rápido**: Gompertz sobreestima el diámetro en unos 3 mm en promedio, el lineal en unos 7 mm y el exponencial se dispara. Entre ellos, Gompertz es el que menos se aleja, precisamente porque desacelera, pero desacelera demasiado pronto: con esos parámetros el tumor ya estaría casi en su tamaño final hacia el día 15, mientras que los tumores reales siguen creciendo hasta que se retira al ratón.
+
+Las respuestas (i)–(iii) son correctas para el modelo con esos parámetros, pero no hay que leerlas como predicciones para estos tumores: con los datos, el diámetro mediano pasa de unos 4–5 mm (días 4–7) a unos 8.5 mm el día 12: duplicarlo toma más de una semana, no 3 días.
 
 
 ```python
-# Velocidad de crecimiento contra tamaño: la forma más directa de ver la
-# desaceleración. En los datos la estimamos con diferencias finitas.
+# Velocidad de crecimiento contra tamaño: la forma más directa de ver si hay
+# desaceleración. Para cada ratón usamos pares de mediciones consecutivas.
+pares = []
+for raton, g in datos.sort_values("Time").groupby("ID"):
+    dt = np.diff(g["Time"].to_numpy())
+    dd_ = np.diff(g["d"].to_numpy())
+    dm = (g["d"].to_numpy()[1:] + g["d"].to_numpy()[:-1]) / 2
+    pares.append(np.column_stack([dm, dd_ / dt]))
+pares = np.vstack(pares)            # columnas: diámetro medio, velocidad (mm/día)
+
+# Mediana de la velocidad por intervalos de tamaño (para ver la tendencia entre el ruido).
+bordes = np.arange(3, 16, 2)
+centros, med_vel = [], []
+for lo, hi in zip(bordes[:-1], bordes[1:]):
+    sel = (pares[:, 0] >= lo) & (pares[:, 0] < hi)
+    if sel.sum() >= 5:
+        centros.append((lo + hi) / 2)
+        med_vel.append(np.median(pares[sel, 1]))
+        print(f"d entre {lo:2d} y {hi:2d} mm: {sel.sum():3d} pares, velocidad mediana = {med_vel[-1]:.2f} mm/día")
+
 fig, ax = plt.subplots(figsize=(7.5, 4.5))
-vel = np.diff(d_medido, axis=1) / np.diff(dias)          # mm/día entre mediciones
-d_med = (d_medido[:, 1:] + d_medido[:, :-1]) / 2          # diámetro en el punto medio
-ax.plot(d_med.ravel(), vel.ravel(), ".", color="gray", alpha=0.6, label="datos (diferencias finitas)")
+ax.plot(pares[:, 0], pares[:, 1], ".", color="gray", alpha=0.6, label="pares de mediciones consecutivas")
+ax.plot(centros, med_vel, "ks-", lw=2, label="mediana por intervalo de tamaño")
 dd = np.linspace(0.5, 16, 300)
-ax.plot(dd, np.full_like(dd, k_), "C1", lw=2, label="lineal: constante")
-ax.plot(dd, lam_ * dd, "C2", lw=2, label="exponencial: crece con d")
-ax.plot(dd, v_gompertz(dd, a_, Kd_), "C0", lw=2, label="Gompertz")
-ax.axvline(d_max, color="C0", ls=":", label=r"$K_d/e$")
+ax.plot(dd, np.full_like(dd, k_), "C1", lw=2, label="lineal (enunciado)")
+ax.plot(dd, lam_ * dd, "C2", lw=2, label="exponencial (enunciado)")
+ax.plot(dd, v_gompertz(dd, a_, Kd_), "C0", lw=2, label="Gompertz (enunciado)")
 ax.set_xlabel("diámetro $d$ [mm]")
 ax.set_ylabel("velocidad $\\dot d$ [mm/día]")
 ax.set_ylim(-1.5, 4)
+ax.legend(fontsize=8)
+plt.show()
+```
+
+    d entre  3 y  5 mm:   9 pares, velocidad mediana = 0.26 mm/día
+    d entre  5 y  7 mm:  30 pares, velocidad mediana = 0.72 mm/día
+    d entre  7 y  9 mm:  30 pares, velocidad mediana = 0.90 mm/día
+    d entre  9 y 11 mm:  38 pares, velocidad mediana = 0.76 mm/día
+    d entre 11 y 13 mm:  36 pares, velocidad mediana = 0.79 mm/día
+    d entre 13 y 15 mm:  10 pares, velocidad mediana = 0.67 mm/día
+
+
+
+    
+{% endraw %}![Figura]({{ '/assets/images/mp1-p4-crecimiento-tumoral/mp1-p4-crecimiento-tumoral_13_1.png' | relative_url }}){% raw %}
+    
+
+
+### Extra: ¿qué dicen los datos si sí ajustamos?
+
+El enunciado pide usar los parámetros dados, no ajustarlos, y eso es lo que hicimos arriba. Pero como esos parámetros no describen los datos, la pregunta "¿cuál modelo reproduce la desaceleración?" queda mejor contestada si dejamos que cada modelo elija sus mejores parámetros. Ajustamos los tres por mínimos cuadrados al diámetro de todas las mediciones juntas y los comparamos con el **criterio de información de Akaike** (AIC), que premia el buen ajuste pero penaliza tener más parámetros: menor AIC es mejor, y diferencias menores que 2 se consideran poco importantes.
+
+(Simplificaciones: tratamos todas las mediciones como independientes y con los mismos parámetros para todos los ratones. Un análisis más fino usaría modelos de efectos mixtos, que es lo que hacen Benzekry et al.)
+
+
+```python
+from scipy.optimize import curve_fit
+
+t_obs, d_obs = datos["t"].to_numpy(), datos["d"].to_numpy()
+ajustes = {
+    "lineal": (d_lineal, [4, 0.5], ["d0", "k"]),
+    "exponencial": (d_exponencial, [4, 0.1], ["d0", "lambda"]),
+    "Gompertz": (lambda t, d0, a, Kd: d_gompertz(t, d0, a, Kd), [4, 0.1, 20], ["d0", "a", "Kd"]),
+}
+parametros = {}
+for nombre, (f, p0, nombres) in ajustes.items():
+    p, cov = curve_fit(f, t_obs, d_obs, p0=p0, maxfev=20000)
+    ee = np.sqrt(np.diag(cov))
+    rss = np.sum((d_obs - f(t_obs, *p)) ** 2)
+    n = len(d_obs)
+    aic = n * np.log(rss / n) + 2 * len(p)
+    parametros[nombre] = p
+    texto = ", ".join(f"{nm} = {v:.3f} ± {e:.3f}" for nm, v, e in zip(nombres, p, ee))
+    print(f"{nombre:12s}: {texto}")
+    print(f"{'':12s}  raíz del error cuadrático medio = {np.sqrt(rss / n):.2f} mm, AIC = {aic:.1f}")
+
+fig, ax = plt.subplots(figsize=(8, 4.8))
+ax.plot(t_obs, d_obs, "o", color="gray", ms=3, alpha=0.5, label="datos")
+t = np.linspace(0, 30, 300)
+for (nombre, (f, _, _)), c in zip(ajustes.items(), ["C1", "C2", "C0"]):
+    ax.plot(t, f(t, *parametros[nombre]), c, lw=2, label=f"{nombre} ajustado")
+ax.axvspan(18, 30, color="gray", alpha=0.1, label="extrapolación (casi sin datos)")
+ax.set_ylim(0, 40)
+ax.set_xlabel("$t$ = día − 4")
+ax.set_ylabel("diámetro $d$ [mm]")
+ax.set_title("Los tres modelos ajustados a los datos")
 ax.legend(fontsize=9)
 plt.show()
 ```
 
+    lineal      : d0 = 3.287 ± 0.229, k = 0.635 ± 0.022
+                  raíz del error cuadrático medio = 1.24 mm, AIC = 78.5
+    exponencial : d0 = 4.787 ± 0.160, lambda = 0.066 ± 0.003
+                  raíz del error cuadrático medio = 1.34 mm, AIC = 105.0
+    Gompertz    : d0 = 3.286 ± 0.306, a = 0.089 ± 0.017, Kd = 20.715 ± 3.015
+                  raíz del error cuadrático medio = 1.22 mm, AIC = 76.0
+
+
 
     
-{% endraw %}![Figura]({{ '/assets/images/mp1-p4-crecimiento-tumoral/mp1-p4-crecimiento-tumoral_12_0.png' | relative_url }}){% raw %}
+{% endraw %}![Figura]({{ '/assets/images/mp1-p4-crecimiento-tumoral/mp1-p4-crecimiento-tumoral_15_1.png' | relative_url }}){% raw %}
     
 
 
-**¿Cuál reproduce la desaceleración?** Solo Gompertz. El modelo lineal predice velocidad constante y el exponencial una velocidad que crece con el tamaño; en los datos la velocidad es máxima en los tumores pequeños (de 5 a 7 mm, cerca de $K_d/e$) y cae hacia cero conforme el tumor se acerca a unos 15 mm. Con los parámetros del enunciado, sin ajustar nada, Gompertz sigue la mediana de los datos con un error de menos de un milímetro, mientras que los otros dos se separan rápidamente después de la primera semana.
+**¿Cuál reproduce la desaceleración?** Con los datos reales la respuesta tiene matices:
 
-(Advertencia sobre la circularidad: nuestros datos se **generaron** con Gompertz, así que este resultado era de esperarse. Con los datos reales de Benzekry et al. la conclusión del artículo es la misma, Gompertz y modelos similares describen bien las curvas, pero vale la pena repetir el ejercicio con ellos.)
+* **El exponencial queda descartado:** predice que la velocidad aumenta con el tamaño y es el que peor ajusta, con un AIC mucho mayor que los otros dos.
+* **Gompertz ajustado es el mejor**, pero por poco: su tasa ajustada es $a \approx 0.09$ día⁻¹ (no 0.25) y su capacidad de carga $K_d \approx 21$ mm (no 15), muy incierta porque ningún tumor se acercó a ese tamaño. El modelo lineal, que no desacelera, queda casi empatado en el intervalo observado.
+* **Dentro del periodo observado, la desaceleración en diámetro es modesta:** la velocidad mediana se mantiene entre 0.7 y 0.9 mm/día para tumores de 5 a 15 mm. Lo que sí se ve es lo contrario al inicio: los tumores más pequeños (menos de 5 mm) crecen más lento, alrededor de 0.3 mm/día, probablemente porque el implante tarda en establecerse; ninguno de los tres modelos contempla esa fase. Un diámetro que crece casi linealmente equivale a un volumen que crece como $t^3$: su tasa per cápita, $3k/(d_0 + kt)$, sí disminuye con el tiempo, así que en **volumen** la desaceleración respecto a un crecimiento exponencial es clara.
+* **Por qué no vemos la meseta:** los ratones se retiran del estudio alrededor de 1 500 mm³ (unos 14 mm de diámetro), antes de que el tumor se acerque a su capacidad de carga. Los datos simplemente no llegan a la zona donde Gompertz y el lineal se separan (la región sombreada de la figura), y por eso el último tramo no permite decidir entre ellos.
+
+La lección general: **un modelo con parámetros "de libro" puede tener la forma correcta y aun así no describir los datos**, y la capacidad de distinguir modelos depende de que los datos cubran la región donde sus predicciones difieren.
 
 ## 4. Discusión
 
@@ -378,7 +487,7 @@ plt.show()
 
 
     
-{% endraw %}![Figura]({{ '/assets/images/mp1-p4-crecimiento-tumoral/mp1-p4-crecimiento-tumoral_15_0.png' | relative_url }}){% raw %}
+{% endraw %}![Figura]({{ '/assets/images/mp1-p4-crecimiento-tumoral/mp1-p4-crecimiento-tumoral_18_0.png' | relative_url }}){% raw %}
     
 
 
