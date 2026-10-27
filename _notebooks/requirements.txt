@@ -1,0 +1,7 @@
+numpy
+scipy
+matplotlib
+sympy
+# para convertir notebooks en entradas del blog (_scripts/notebook_a_post.py):
+nbformat
+nbconvert
