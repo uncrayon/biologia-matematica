@@ -30,6 +30,7 @@ $$
 3. Un retraso en la producción.
 4. Comparación con el modelo de Tetschke et al. (2018).
 5. Parámetros del artículo traducidos a nuestro modelo: recuperación después de una donación.
+6. Extra: dopaje con EPO, transporte de oxígeno y potencia de un ciclista.
 
 
 ```python
@@ -428,10 +429,14 @@ for vida_media in [120, 60, 30, 15]:
 ```
 
     vida media 120 días (c = 0.0083): inestable para m > 36.6
+
+
     vida media  60 días (c = 0.0167): inestable para m > 19.3
 
 
     vida media  30 días (c = 0.0333): inestable para m > 10.6
+
+
     vida media  15 días (c = 0.0667): inestable para m > 6.2
 
 
@@ -541,17 +546,19 @@ plt.show()
 
     Equilibrio (x1, x2, x3) = [ 59.03  44.27 885.42]  (Tabla 1: 59.03, 44.27, 885.42)
     población (β = 1.02, γ = 0.46)    : 90 % del déficit en  39.1 días, máximo = 100.68 % -> oscila un poco según la condición (9)
+
+
     sujeto 02 (β = 0.87, γ = 0.39)    : 90 % del déficit en  46.3 días, máximo = 100.66 % -> oscila un poco según la condición (9)
-
-
     sujeto 09 (β = 0.89, γ = 0.36)    : 90 % del déficit en  50.0 días, máximo = 100.38 % -> oscila un poco según la condición (9)
+
+
     sujeto 12 (β = 1.41, γ = 1.00)    : 90 % del déficit en  19.5 días, máximo = 102.46 % -> oscila un poco según la condición (9)
     sujeto 20 (β = 2.80, γ = 0.66)    : 90 % del déficit en  26.8 días, máximo = 100.00 % -> sin oscilaciones según la condición (9)
 
 
 
     
-{% endraw %}![Figura]({{ '/assets/images/mp1-p2-globulos-rojos/mp1-p2-globulos-rojos_15_2.png' | relative_url }}){% raw %}
+{% endraw %}![Figura]({{ '/assets/images/mp1-p2-globulos-rojos/mp1-p2-globulos-rojos_15_3.png' | relative_url }}){% raw %}
     
 
 
@@ -636,12 +643,248 @@ Esto también conecta con la sección 3: con $m \approx 5.5$ y $k = 14$ estamos 
 
 **Limitaciones:** el valor $b = 6c$ es un supuesto nuestro (solo importa la pendiente de $p$ en el equilibrio, pero $m$ depende de $b$). Un retraso fijo de 14 días es más brusco que el retraso distribuido de los compartimentos, lo que favorece las oscilaciones. Y, como notan los propios autores, en varios sujetos el mínimo de tHb no ocurre justo después de la donación sino una semana después; ninguno de los dos modelos captura esa fase.
 
+## 6. Extra: dopaje con EPO, transporte de oxígeno y potencia de un ciclista
+
+La eritropoyetina (EPO) es la hormona que, en el modelo de Tetschke et al., está escondida en la retroalimentación $F_b$: cuando faltan eritrocitos, el riñón produce más EPO y los progenitores $x_1$ proliferan más. La EPO recombinante es un medicamento valioso (por ejemplo, para la anemia de la insuficiencia renal), pero también se ha usado como dopaje en deportes de resistencia como el ciclismo. Con lo que ya construimos podemos seguir toda la cadena de efectos:
+
+$$
+\text{EPO externa} \;\longrightarrow\; \text{más hemoglobina} \;\longrightarrow\; \text{más oxígeno a los músculos} \;\longrightarrow\; \text{más potencia}.
+$$
+
+> ⚠️ **Salud y reglas.** Esta sección es un ejercicio de modelación, no una guía. La EPO está prohibida por la Agencia Mundial Antidopaje y se detecta tanto directamente (en orina y sangre) como indirectamente con el *pasaporte biológico*, que sigue en el tiempo la hemoglobina y los reticulocitos de cada atleta. Además es peligrosa: al subir el hematocrito la sangre se vuelve más viscosa, sobre todo con la deshidratación de una carrera, lo que aumenta el riesgo de trombosis, infarto y embolia. Por eso el estímulo del modelo no está expresado en dosis reales, sino como una tasa abstracta.
+
+### 6.1 La EPO externa en el modelo de Tetschke
+
+La EPO externa se suma a la retroalimentación propia del cuerpo. Mientras dura el estímulo, entre $t_0$ y $t_1$, la proliferación de $x_1$ aumenta en una tasa constante $\delta$:
+
+$$
+\dot x_1 = \beta\,(X_0 - k_1 x_1) + \big(F_b(x_3) + \delta\,\mathbb{1}_{[t_0, t_1)}(t)\big)\,x_1 ,
+$$
+
+con las otras dos ecuaciones sin cambio. Si el estímulo durara para siempre, ¿a qué nivel llegaría la hemoglobina? En el nuevo equilibrio, $\dot x_1 = 0$ da $x_1 = \beta X_0/(\beta k_1 - F_b - \delta)$, y como $x_3 = (k_1/\alpha)\,x_1$ y $X_0 = \alpha\,\mathit{Base}$, el cociente $y = x_3/\mathit{Base}$ cumple
+
+$$
+y\,\big(\beta k_1 - \gamma(1 - y) - \delta\big) = \beta k_1
+\quad\Longleftrightarrow\quad
+\delta = \beta k_1 - \gamma\,(1 - y) - \frac{\beta k_1}{y}.
+$$
+
+Para $y$ cercano a 1 esto da $y - 1 \approx \delta/(\beta k_1 + \gamma)$. Fíjate en el denominador: **la retroalimentación del propio cuerpo ($\gamma$) frena el efecto del estímulo externo**. Cuando la hemoglobina sube por encima de lo normal, $F_b$ se vuelve negativa, es decir, el cuerpo deja de producir su propia EPO. Elegimos $\delta$ para que, a largo plazo, la masa de hemoglobina suba 5 % o 10 %, y simulamos un estímulo de 6 semanas.
+
+
+```python
+def tetschke_epo(t, x, beta, gamma, delta, t0, t1):
+    """Ecuaciones de Tetschke et al. con un estímulo externo delta en la proliferación de x1 entre t0 y t1."""
+    x1, x2, x3 = x
+    Fb = gamma * (BASE - x3) / BASE                 # retroalimentación propia (EPO del cuerpo)
+    estimulo = delta if t0 <= t < t1 else 0.0       # EPO externa
+    return [beta * (X0 - K1 * x1) + (Fb + estimulo) * x1,
+            beta * (K1 * x1 - K2 * x2),
+            beta * (K2 * x2 - ALFA * x3)]
+
+
+def delta_para(y, beta=1.02, gamma=0.46):
+    """Estímulo que, sostenido indefinidamente, lleva x3 a y veces su valor normal."""
+    return beta * K1 - gamma * (1 - y) - beta * K1 / y
+
+
+T0, T1, T_FIN = 0, 42, 250            # 6 semanas de estímulo y seguimiento hasta el día 250
+dias = np.arange(T_FIN + 1)
+trayectorias = {}
+fig, axs = plt.subplots(1, 2, figsize=(14, 4.5))
+for objetivo in [1.05, 1.10]:
+    delta = delta_para(objetivo)
+    sol = solve_ivp(tetschke_epo, (0, T_FIN), equilibrio, args=(1.02, 0.46, delta, T0, T1),
+                    max_step=0.2, dense_output=True)
+    X = sol.sol(dias)
+    trayectorias[objetivo] = X
+    etiqueta = f"objetivo +{100 * (objetivo - 1):.0f} % (δ = {delta:.3f} día⁻¹)"
+    axs[0].plot(dias, 100 * X[2] / BASE, label=etiqueta)
+    axs[1].plot(dias, 100 * X[0] / equilibrio[0], label=etiqueta)
+    i_min = np.argmin(X[0])
+    print(f"{etiqueta}: hemoglobina el día 42 = {100 * X[2, 42] / BASE:.1f} %,"
+          f" producción propia mínima = {100 * X[0, i_min] / equilibrio[0]:.0f} % (día {dias[i_min]})")
+for ax in axs:
+    ax.axvspan(T0, T1, color="C3", alpha=0.08, label="estímulo con EPO externa")
+    ax.axhline(100, color="gray", ls="--")
+    ax.set_xlabel("día")
+axs[0].set_ylabel("masa de hemoglobina [% de lo normal]")
+axs[0].set_title("Eritrocitos en la sangre ($x_3$)")
+axs[1].set_ylabel("progenitores $x_1$ [% de lo normal]")
+axs[1].set_title("Médula: progenitores sensibles a la EPO ($x_1$)")
+axs[0].legend(fontsize=9)
+plt.tight_layout()
+plt.show()
+```
+
+    objetivo +5 % (δ = 0.029 día⁻¹): hemoglobina el día 42 = 104.5 %, producción propia mínima = 88 % (día 62)
+    objetivo +10 % (δ = 0.058 día⁻¹): hemoglobina el día 42 = 110.0 %, producción propia mínima = 76 % (día 61)
+
+
+
+    
+{% endraw %}![Figura]({{ '/assets/images/mp1-p2-globulos-rojos/mp1-p2-globulos-rojos_21_1.png' | relative_url }}){% raw %}
+    
+
+
+**Lectura.** Durante el estímulo la masa de hemoglobina sube poco a poco; en 6 semanas alcanza el aumento buscado, y el máximo llega unos días **después** de suspenderlo, porque las células que ya estaban en camino en la médula siguen llegando a la sangre. Luego regresa a lo normal en unos dos meses, así que el efecto dura semanas después del estímulo. Es más rápido de lo que dictaría solo la vida de 120 días de los eritrocitos, por lo que pasa en la médula: mientras la hemoglobina está alta, la retroalimentación propia está "apagada" (la hemoglobina está por encima de lo normal) y la producción de la médula cae **por debajo de lo normal**, hasta alrededor de 76 % en el escenario de +10 %. Hemoglobina alta con producción de células jóvenes deprimida es justamente el tipo de huella que busca el pasaporte biológico.
+
+### 6.2 De la hemoglobina al oxígeno: el principio de Fick
+
+El consumo de oxígeno del cuerpo es lo que entrega la sangre menos lo que regresa:
+
+$$
+\dot V_{O_2} = Q \cdot \big(C_{aO_2} - C_{vO_2}\big) = Q \cdot C_{aO_2} \cdot E ,
+$$
+
+donde $Q$ es el gasto cardiaco (litros de sangre por minuto), $C_{aO_2}$ el contenido de oxígeno de la sangre arterial y $E$ la fracción que extraen los músculos. En un esfuerzo máximo, $\dot V_{O_2}$ es el **consumo máximo de oxígeno**, $\dot V_{O_2\max}$. El contenido arterial depende sobre todo de la hemoglobina:
+
+$$
+C_{aO_2} = 1.34\,[\mathrm{Hb}]\,S_{aO_2} + 0.003\,P_{aO_2},
+$$
+
+porque cada gramo de hemoglobina saturada lleva 1.34 ml de oxígeno ($S_{aO_2}$ es la saturación) y la sangre disuelve un poco más (el segundo término, pequeño).
+
+**Un detalle importante: masa contra concentración.** Lo que la EPO aumenta es la **masa** total de hemoglobina, pero en la fórmula aparece su **concentración** $[\mathrm{Hb}]$, la masa dividida entre el volumen de sangre. El volumen de sangre es plasma más eritrocitos, y los eritrocitos ocupan un volumen de unos $\text{masa de Hb}/\mathrm{CHCM}$, con $\mathrm{CHCM} \approx 330$ g/l la concentración de hemoglobina dentro de cada eritrocito. Consideramos dos casos extremos:
+
+* **Plasma constante:** los eritrocitos nuevos se suman al volumen de sangre, así que $[\mathrm{Hb}]$ sube menos que la masa.
+* **Volumen de sangre constante:** el plasma se reduce lo mismo que crece el volumen de eritrocitos, y $[\mathrm{Hb}]$ sube igual que la masa.
+
+Valores típicos que usamos (son supuestos de un ciclista entrenado, no mediciones de una persona): plasma de 3.2 l (con la masa normal de 885 g esto da $[\mathrm{Hb}] \approx 15$ g/dl y hematocrito de 46 %), gasto cardiaco máximo $Q = 30$ l/min, saturación 97 %, $P_{aO_2} = 100$ mmHg y extracción máxima $E = 0.85$.
+
+### 6.3 Del oxígeno a los watts
+
+Los músculos convierten la energía de los nutrientes en trabajo mecánico. Cada litro de oxígeno consumido libera unos 20.9 kJ, y la **eficiencia bruta** de un ciclista, la fracción que llega a los pedales, es de alrededor de 22 %:
+
+$$
+P = \dot V_{O_2} \cdot 20.9\ \tfrac{\text{kJ}}{\text{l}} \cdot \eta .
+$$
+
+En un esfuerzo de unos 30 minutos un ciclista sostiene alrededor del 85 % de su $\dot V_{O_2\max}$. Para traducir watts en tiempo usamos la física de una subida: la potencia vence a la gravedad, la rodadura y el aire,
+
+$$
+P = \Big(m g\,(\sin\phi + C_{rr}\cos\phi) + \tfrac12\,\rho\,C_dA\,v^2\Big)\,v ,
+$$
+
+con masa total $m = 75$ kg (ciclista y bicicleta), pendiente de 7 % ($\phi = \arctan 0.07$), $C_{rr} = 0.004$, $C_dA = 0.35$ m² y densidad del aire $\rho = 1.1$ kg/m³. Resolvemos esta ecuación cúbica para la velocidad $v$.
+
+
+```python
+from scipy.optimize import brentq
+
+CHCM = 330.0            # g de hemoglobina por litro de eritrocitos
+PLASMA = 3.2            # l de plasma (supuesto: da [Hb] ≈ 15 g/dl y hematocrito ≈ 46 %)
+Q_MAX = 30.0            # l/min, gasto cardiaco máximo de un ciclista entrenado (supuesto)
+SAT, PAO2, EXTRACCION = 0.97, 100.0, 0.85
+KJ_POR_LITRO, EFICIENCIA, FRACCION_30MIN = 20.9, 0.22, 0.85
+
+
+def sangre(masa_hb, caso):
+    """Concentración de hemoglobina (g/l) y hematocrito para una masa de hemoglobina (g)."""
+    vol_eritrocitos = masa_hb / CHCM
+    if caso == "plasma constante":
+        volumen = PLASMA + vol_eritrocitos
+    else:                                       # volumen de sangre constante
+        volumen = PLASMA + BASE / CHCM
+    return masa_hb / volumen, vol_eritrocitos / volumen
+
+
+def vo2max(masa_hb, caso):
+    """Consumo máximo de oxígeno (l/min) por el principio de Fick."""
+    hb, _ = sangre(masa_hb, caso)
+    contenido = (1.34 * hb * SAT + 0.03 * PAO2) / 1000      # l de O2 por l de sangre
+    return Q_MAX * contenido * EXTRACCION
+
+
+def potencia(vo2):
+    """Potencia mecánica (W) para un consumo de oxígeno (l/min)."""
+    return vo2 / 60 * KJ_POR_LITRO * 1000 * EFICIENCIA
+
+
+def velocidad_subida(P, m=75.0, pendiente=0.07, crr=0.004, cda=0.35, rho=1.1, g=9.81):
+    """Velocidad (m/s) que sostiene la potencia P en una subida (raíz de la ecuación cúbica)."""
+    phi = np.arctan(pendiente)
+    resistencia = lambda v: (m * g * (np.sin(phi) + crr * np.cos(phi)) + 0.5 * rho * cda * v**2) * v - P
+    return brentq(resistencia, 0.01, 30)
+
+
+print(f"{'masa Hb':>9s} {'caso':>18s} {'[Hb] g/dl':>10s} {'Hto %':>6s} {'VO2max':>7s} {'P máx':>6s}"
+      f" {'P 30 min':>9s} {'10 km al 7 %':>13s}")
+base_tiempo = None
+for objetivo in [1.00, 1.05, 1.10]:
+    for caso in ["plasma constante", "volumen constante"]:
+        if objetivo == 1.00 and caso == "volumen constante":
+            continue
+        masa = BASE * objetivo
+        hb, hto = sangre(masa, caso)
+        v = vo2max(masa, caso)
+        p30 = potencia(FRACCION_30MIN * v)
+        minutos = 10_000 / velocidad_subida(p30) / 60
+        base_tiempo = base_tiempo or minutos
+        print(f"{100 * objetivo:8.0f}% {caso:>18s} {hb / 10:10.1f} {100 * hto:6.1f} {v:7.2f} {potencia(v):6.0f}"
+              f" {p30:9.0f} {minutos:7.1f} min ({minutos - base_tiempo:+.1f})")
+
+d = 1e-3 * (vo2max(BASE + 1, "plasma constante") - vo2max(BASE, "plasma constante")) * 1e6
+print(f"\nSensibilidad del modelo: {d:.1f} ml/min de VO2max por cada gramo de hemoglobina (plasma constante)")
+```
+
+      masa Hb               caso  [Hb] g/dl  Hto %  VO2max  P máx  P 30 min  10 km al 7 %
+         100%   plasma constante       15.1   45.6    5.06    388       330    30.4 min (+0.0)
+         105%   plasma constante       15.5   46.8    5.20    398       339    29.7 min (-0.6)
+         105%  volumen constante       15.8   47.9    5.31    407       346    29.2 min (-1.2)
+         110%   plasma constante       15.8   48.0    5.32    408       347    29.1 min (-1.2)
+         110%  volumen constante       16.6   50.2    5.56    426       362    28.1 min (-2.3)
+    
+    Sensibilidad del modelo: 3.1 ml/min de VO2max por cada gramo de hemoglobina (plasma constante)
+
+
+
+```python
+# Todo junto en el tiempo: el escenario de +10 % de la sección 6.1, traducido a VO2max y a tiempo de subida.
+X = trayectorias[1.10]
+fig, axs = plt.subplots(1, 3, figsize=(17, 4.3))
+for caso, estilo in [("plasma constante", "-"), ("volumen constante", "--")]:
+    v = np.array([vo2max(m, caso) for m in X[2]])
+    hto = np.array([sangre(m, caso)[1] for m in X[2]])
+    tiempo = np.array([10_000 / velocidad_subida(potencia(FRACCION_30MIN * vv)) / 60 for vv in v])
+    axs[0].plot(dias, 100 * hto, estilo, label=caso)
+    axs[1].plot(dias, v, estilo, label=caso)
+    axs[2].plot(dias, tiempo, estilo, label=caso)
+axs[0].axhline(50, color="C3", ls=":", label="hematocrito de 50 %")
+axs[0].set_ylabel("hematocrito [%]")
+axs[1].set_ylabel(r"$\dot V_{O_2\max}$ [l/min]")
+axs[2].set_ylabel("minutos para 10 km al 7 %")
+for ax in axs:
+    ax.axvspan(T0, T1, color="C3", alpha=0.08)
+    ax.set_xlabel("día")
+    ax.legend(fontsize=9)
+axs[1].set_title("Escenario +10 %: efecto en el tiempo")
+plt.tight_layout()
+plt.show()
+```
+
+
+    
+{% endraw %}![Figura]({{ '/assets/images/mp1-p2-globulos-rojos/mp1-p2-globulos-rojos_24_0.png' | relative_url }}){% raw %}
+    
+
+
+**Lectura.**
+
+* **Más hemoglobina, más oxígeno, más watts, pero menos de lo que parece.** Un aumento de 10 % en la **masa** de hemoglobina eleva la **concentración** solo unos 5 % si el plasma no cambia, porque los eritrocitos nuevos también ocupan volumen. El $\dot V_{O_2\max}$ sube en la misma proporción, unos 5 %. Si el plasma se reduce y el volumen de sangre se mantiene, el efecto se acerca al 10 %. El caso real queda entre los dos extremos.
+* **En watts y en minutos.** Con nuestros supuestos, un ciclista que sostiene unos 330 W en una subida de 30 minutos gana del orden de 15 a 30 W y llega entre 1 y 2.5 minutos antes a la cima de una subida de 10 km al 7 %. En el deporte de élite, donde los primeros lugares se separan por segundos, eso es enorme. Por eso la EPO se convirtió en un problema tan grave en el ciclismo.
+* **Comparación con mediciones.** La sensibilidad de nuestro modelo, unos 3 ml/min de $\dot V_{O_2\max}$ por gramo de hemoglobina, es del mismo orden que la que se reporta en estudios con atletas, de alrededor de 4 ml/min por gramo (Schmidt y Prommer, 2010). No está mal para un modelo con cuatro ecuaciones y supuestos de libro.
+* **El efecto dura más que el estímulo.** Como los eritrocitos viven unos 120 días, la ventaja persiste varias semanas después de suspender la EPO.
+
+**Limitaciones (y por qué no hay que extrapolar demasiado).** Supusimos que el gasto cardiaco máximo, la extracción y la eficiencia no cambian. En realidad, con la sangre más viscosa el corazón trabaja más, y por encima de cierto hematocrito el transporte de oxígeno deja de mejorar y los riesgos se disparan. Con volumen de sangre constante, el escenario de +10 % ya rebasa 50 % de hematocrito. También supusimos que el oxígeno que llega es el factor que limita el esfuerzo; eso es razonable para el $\dot V_{O_2\max}$ de un atleta entrenado a nivel del mar, pero no para todos. Y los parámetros son "típicos", no de una persona concreta: el modelo sirve para entender la cadena causal y el orden de magnitud, no para predecir el rendimiento de nadie.
+
 ## Conclusiones
 
 1. $a$ y $b$ (o $b$ en Hill) son la producción por célula en anemia extrema; $b$ en Ricker y $\theta$ en Hill fijan la escala de la población normal; $m$ fija qué tan abrupta es la regulación.
 2. Hay un equilibrio positivo si la producción en anemia supera la destrucción. Es estable salvo que la regulación sea muy abrupta: $c\ln(a/c) > 2$ (Ricker) o $cm(1 - c/b) > 2$ (Hill) dan duplicaciones de periodo y caos. Con $c = 1/120$ esos umbrales son inalcanzables.
 3. Un retraso de pocos días, en cambio, sí puede producir oscilaciones sostenidas (como en Mackey–Glass), sobre todo si aumenta la destrucción.
 4. El modelo de Tetschke et al. sustituye la función $p(x)$ por tres compartimentos con una retroalimentación lineal sobre las células sensibles a la EPO, y ajusta dos parámetros por persona con datos de donadores. Traduciendo sus parámetros a nuestro modelo ($c = 1/120$, retraso de 14 días, $m \approx 5.5$), el modelo discreto reproduce bien su tiempo de recuperación de unas 6 semanas y su pequeño sobrepaso, aunque no la forma suave del inicio.
+5. **Extra:** añadiendo un estímulo externo de EPO al modelo de Tetschke y conectándolo con el principio de Fick, un aumento de 10 % en la masa de hemoglobina se traduce en unos 5–10 % más de $\dot V_{O_2\max}$ y en minutos de ventaja en una subida. El cuerpo frena el estímulo apagando su propia producción, que queda deprimida después de suspenderlo.
 
-**Referencias:** de Vries et al. (2006), *A Course in Mathematical Biology*, SIAM, pp. 9–47; Mackey, M. & Glass, L. (1977), *Science* 197: 287–289; Tetschke, M. et al. (2018), *Processes* 6(9): 157, doi:10.3390/pr6090157; Pottgiesser, T. et al. (2008), *Transfusion* 48: 1390–1397.
+**Referencias:** de Vries et al. (2006), *A Course in Mathematical Biology*, SIAM, pp. 9–47; Mackey, M. & Glass, L. (1977), *Science* 197: 287–289; Tetschke, M. et al. (2018), *Processes* 6(9): 157, doi:10.3390/pr6090157; Pottgiesser, T. et al. (2008), *Transfusion* 48: 1390–1397; Schmidt, W. & Prommer, N. (2010), Impact of alterations in total hemoglobin mass on VO2max, *Exercise and Sport Sciences Reviews* 38(2): 68–75.
 {% endraw %}
