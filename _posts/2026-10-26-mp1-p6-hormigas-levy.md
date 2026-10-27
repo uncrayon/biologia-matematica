@@ -296,13 +296,135 @@ Usamos el escenario `sin-comida`. Como ninguna hormiga encuentra comida, ninguna
 * **Longitud de paso:** la distancia recorrida en cada tick.
 * **Ángulo de giro:** el cambio de dirección entre ticks consecutivos (excluyendo los rebotes en las paredes, que son giros de 180°).
 
-**Predicción teórica.** La diferencia de dos uniformes discretas tiene una distribución **triangular** entre −39° y 39°, con media 0. Una caminata cuyos pasos tienen longitud fija y cuyos giros son independientes, pero pequeños, es una **caminata aleatoria correlacionada**: la hormiga tiende a seguir en la misma dirección por un rato. Si $\bar c = E[\cos\theta]$ es el coseno medio del giro, el desplazamiento cuadrático medio después de $n$ pasos de longitud 1 es
+### Predicción teórica
+
+Antes de mirar los datos, deduzcamos qué tipo de movimiento producen estas reglas. Solo necesitamos probabilidad básica y algo de trigonometría. Ignoramos las paredes, es decir, pensamos en un plano infinito.
+
+**Paso 1: la distribución del ángulo de giro es triangular.** En cada tick la hormiga gira $\theta = U_1 - U_2$ grados, con $U_1$ y $U_2$ independientes y uniformes en $\lbrace 0, 1, \dots, 39\rbrace$. Hay $40 \times 40 = 1600$ parejas $(U_1, U_2)$ igualmente probables. ¿Cuántas cumplen $U_1 - U_2 = k$? Si $k \ge 0$, las parejas $(k, 0), (k+1, 1), \dots, (39, 39 - k)$, que son $40 - k$; por simetría lo mismo para $k < 0$. Entonces
 
 $$
-\langle R_n^2\rangle = n\,\frac{1 + \bar c}{1 - \bar c} - \frac{2\bar c\,(1 - \bar c^{\,n})}{(1 - \bar c)^2}.
+P(\theta = k) = \frac{40 - \lvert k\rvert}{1600}, \qquad k = -39, \dots, 39 .
 $$
 
-Para $n$ pequeño $\langle R_n^2 \rangle \approx n^2$ (movimiento casi recto, **balístico**) y para $n$ grande $\langle R_n^2\rangle \approx n(1+\bar c)/(1-\bar c)$ (crece linealmente, **difusivo**, como el movimiento browniano).
+La gráfica de esta función es un triángulo con pico en $k = 0$: girar poco es lo más probable. Como la distribución es simétrica, $E[\theta] = 0$ y $E[\sin\theta] = 0$ (no hay preferencia por izquierda o derecha). Su varianza es $\operatorname{Var}(\theta) = \operatorname{Var}(U_1) + \operatorname{Var}(U_2) = 2\cdot\frac{40^2 - 1}{12} = 266.5$, es decir, una desviación estándar de $\sqrt{266.5} \approx 16.3^\circ$.
+
+**Paso 2: la trayectoria es una suma de vectores unitarios.** Sea $\phi_j$ el rumbo de la hormiga en el paso $j$. Cada giro se suma al rumbo anterior:
+
+$$
+\phi_j = \phi_0 + \theta_1 + \theta_2 + \dots + \theta_j ,
+$$
+
+y en cada tick la hormiga avanza una unidad en esa dirección, es decir, suma el vector unitario $\mathbf s_j = (\sin\phi_j, \cos\phi_j)$ (en NetLogo el rumbo 0 apunta al norte). Después de $n$ pasos su desplazamiento desde el punto de partida es
+
+$$
+\mathbf R_n = \mathbf s_1 + \mathbf s_2 + \dots + \mathbf s_n .
+$$
+
+**Paso 3: los pasos están correlacionados, y la correlación decae geométricamente.** El producto punto de dos vectores unitarios es el coseno del ángulo entre ellos: $\mathbf s_i \cdot \mathbf s_j = \cos(\phi_j - \phi_i)$. Si $j = i + m$, la diferencia de rumbos es la suma de los $m$ giros intermedios, $\phi_j - \phi_i = \theta_{i+1} + \dots + \theta_{i+m}$. Definimos el **coseno medio del giro**
+
+$$
+\bar c = E[\cos\theta] .
+$$
+
+Usando $e^{ix} = \cos x + i\sin x$ y la independencia de los giros,
+
+$$
+E\big[e^{i(\theta_{i+1} + \dots + \theta_{i+m})}\big] = E\big[e^{i\theta_{i+1}}\big]\cdots E\big[e^{i\theta_{i+m}}\big] = \big(E[\cos\theta] + i\,E[\sin\theta]\big)^m = \bar c^{\,m},
+$$
+
+porque $E[\sin\theta] = 0$. Tomando la parte real:
+
+$$
+E[\mathbf s_i \cdot \mathbf s_{i+m}] = \bar c^{\,m}.
+$$
+
+Este es el corazón del asunto: **dos pasos separados por $m$ ticks tienen correlación $\bar c^{\,m}$**. Con giros pequeños, $\bar c$ es cercano a 1 y la hormiga "recuerda" su dirección durante muchos pasos; la memoria se pierde geométricamente. Si los giros fueran completamente al azar (uniformes en $[0^\circ, 360^\circ)$) tendríamos $\bar c = 0$: pasos independientes, la caminata aleatoria simple.
+
+¿Cuánto vale $\bar c$ aquí? Para ángulos pequeños, $\cos\theta \approx 1 - \theta^2/2$ ($\theta$ en radianes), así que $\bar c \approx 1 - \operatorname{Var}(\theta)/2$. Con $\operatorname{Var}(\theta) = 266.5 \cdot (\pi/180)^2 \approx 0.081$ rad² obtenemos $\bar c \approx 0.959$. El valor exacto (sumando $\cos k^\circ$ con los pesos del paso 1) es $\bar c \approx 0.960$.
+
+**Paso 4: el desplazamiento cuadrático medio.** Como $\lVert \mathbf R_n\rVert^2 = \mathbf R_n \cdot \mathbf R_n = \sum_i \sum_j \mathbf s_i\cdot\mathbf s_j$, y los $n$ términos con $i = j$ valen 1:
+
+$$
+\big\langle R_n^2 \big\rangle := E\big[\lVert \mathbf R_n\rVert^2\big] = n + 2\sum_{m=1}^{n-1} (n - m)\,\bar c^{\,m},
+$$
+
+porque hay exactamente $n - m$ parejas $(i, j)$ con $j - i = m$. Para sumar, escribimos $(n - m)\,\bar c^{\,m}$ como $\bar c^{\,m}$ repetido $n - m$ veces y reagrupamos en sumas geométricas:
+
+$$
+\sum_{m=1}^{n-1} (n - m)\,\bar c^{\,m} = \sum_{k=1}^{n-1} \big(\bar c + \bar c^{\,2} + \dots + \bar c^{\,k}\big) = \sum_{k=1}^{n-1} \frac{\bar c\,(1 - \bar c^{\,k})}{1 - \bar c} = \frac{\bar c}{1 - \bar c}\left[(n - 1) - \frac{\bar c\,(1 - \bar c^{\,n-1})}{1 - \bar c}\right].
+$$
+
+Sustituyendo y simplificando (un buen ejercicio de álgebra) llegamos a
+
+$$
+\big\langle R_n^2 \big\rangle = n\,\frac{1 + \bar c}{1 - \bar c} - \frac{2\bar c\,(1 - \bar c^{\,n})}{(1 - \bar c)^2}.
+$$
+
+Comprobación rápida: con $\bar c = 0$ (pasos independientes) queda $\langle R_n^2\rangle = n$, el resultado clásico de la caminata aleatoria simple.
+
+**Paso 5: dos regímenes.**
+
+* **Tiempos cortos, régimen balístico.** Si $n$ es mucho menor que $1/(1 - \bar c)$, todos los $\bar c^{\,m}$ de la suma valen casi 1, así que $\langle R_n^2\rangle \approx n + 2\sum_{m=1}^{n-1}(n - m) = n^2$. La distancia típica crece como $n$: la hormiga avanza casi en línea recta.
+* **Tiempos largos, régimen difusivo.** Si $n$ es mucho mayor que $1/(1 - \bar c)$, entonces $\bar c^{\,n} \approx 0$ y el término $n(1 + \bar c)/(1 - \bar c)$ domina, así que $\langle R_n^2\rangle \approx n\,(1 + \bar c)/(1 - \bar c)$. Crece **linealmente** en $n$, igual que una caminata aleatoria simple o el movimiento browniano: la distancia típica crece solo como $\sqrt n$. Es como si la hormiga diera pasos independientes, pero "efectivamente más largos": el factor $(1 + \bar c)/(1 - \bar c)$ es el precio de su memoria.
+
+Hay dos números que resumen todo esto, y conviene no confundirlos:
+
+* La **longitud de persistencia**, $\ell_p = -1/\ln \bar c \approx 1/(1 - \bar c) \approx 25$ pasos, es el número de pasos tras el cual la correlación $\bar c^{\,m}$ cae por un factor $e$: aproximadamente, cuánto tiempo la hormiga "recuerda" hacia dónde iba.
+* El **cruce** entre los dos regímenes ocurre donde $n^2 = n(1 + \bar c)/(1 - \bar c)$, es decir en $n^{\ast} = (1 + \bar c)/(1 - \bar c) \approx 2\ell_p \approx 49$ pasos.
+
+Así que, en el mundo de 71 × 71 parcelas, una hormiga recorre buena parte del mundo antes de "olvidar" su dirección. En la escala del hormiguero se mueve casi en línea recta, y solo a escalas mucho mayores se vería como un movimiento browniano.
+
+La siguiente celda comprueba numéricamente las piezas de la deducción: el valor de $\bar c$ calculado de tres maneras y el decaimiento geométrico de la correlación entre pasos.
+
+
+```python
+# ============================================================
+# Comprobación numérica de la deducción (plano sin paredes)
+# ============================================================
+k = np.arange(-39, 40)                       # posibles ángulos de giro (grados)
+pesos = (40 - np.abs(k)) / 1600              # distribución triangular (paso 1)
+
+# (a) Valor exacto de c = E[cos(theta)] sumando con los pesos.
+c_exacto = np.sum(pesos * np.cos(np.deg2rad(k)))
+# (b) Aproximación de ángulo pequeño: c ≈ 1 - Var(theta)/2, con theta en radianes.
+var_rad = np.sum(pesos * np.deg2rad(k) ** 2)
+c_aprox = 1 - var_rad / 2
+# (c) Forma cerrada: E[e^{i theta}] = |E[e^{i U}]|^2 porque theta = U1 - U2 con U1, U2 iid,
+#     y E[e^{i U}] es una suma geométrica (núcleo de Fejér): c = (sin(20°) / (40 sin(0.5°)))^2.
+c_cerrado = (np.sin(np.deg2rad(20)) / (40 * np.sin(np.deg2rad(0.5)))) ** 2
+print(f"c exacto = {c_exacto:.5f}, forma cerrada = {c_cerrado:.5f}, aproximación 1 - Var/2 = {c_aprox:.5f}")
+print(f"Varianza del giro = {np.sum(pesos * k**2):.1f} grados^2 (teoría: 2 (40^2 - 1)/12 = {2 * (40**2 - 1) / 12:.1f})")
+print(f"Longitud de persistencia -1/ln(c) = {-1 / np.log(c_exacto):.1f} pasos;"
+      f" cruce balístico-difusivo (1 + c)/(1 - c) = {(1 + c_exacto) / (1 - c_exacto):.1f} pasos")
+
+# Correlación entre pasos separados por m ticks, medida en simulación, contra c^m.
+gen = np.random.default_rng(42)              # generador propio: no altera los resultados de las demás celdas
+giros_sim = gen.integers(0, 40, (2000, 3000)) - gen.integers(0, 40, (2000, 3000))
+rumbo_sim = np.deg2rad(np.cumsum(giros_sim, axis=0))     # rumbos de 3000 caminantes, 2000 pasos
+m = np.arange(0, 151)
+correlacion = [np.mean(np.cos(rumbo_sim[mm:] - rumbo_sim[:len(rumbo_sim) - mm])) for mm in m]
+
+fig, ax = plt.subplots(figsize=(7.5, 4.2))
+ax.plot(m, correlacion, "o", ms=3, label=r"simulación: promedio de $\mathbf{s}_i \cdot \mathbf{s}_{i+m}$")
+ax.plot(m, c_exacto ** m, "k-", label=r"teoría: $\bar c^{\,m}$")
+ax.axvline(-1 / np.log(c_exacto), color="C3", ls=":", label=r"longitud de persistencia $\ell_p$")
+ax.set_xlabel("separación $m$ entre pasos")
+ax.set_ylabel("correlación")
+ax.set_title("La memoria de la dirección se pierde geométricamente")
+ax.legend()
+plt.show()
+```
+
+    c exacto = 0.96006, forma cerrada = 0.96006, aproximación 1 - Var/2 = 0.95941
+    Varianza del giro = 266.5 grados^2 (teoría: 2 (40^2 - 1)/12 = 266.5)
+    Longitud de persistencia -1/ln(c) = 24.5 pasos; cruce balístico-difusivo (1 + c)/(1 - c) = 49.1 pasos
+
+
+
+    
+{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_5_1.png' | relative_url }}){% raw %}
+    
+
 
 
 ```python
@@ -334,14 +456,14 @@ valores = np.arange(-39, 40)
 p_teo = (40 - np.abs(valores)) / 40**2
 c_bar = np.sum(p_teo * np.cos(np.deg2rad(valores)))
 print(f"Teoría: desv. est. = {np.sqrt(np.sum(p_teo * valores**2)):.2f}°, E[cos θ] = {c_bar:.4f}")
-print(f"Longitud de persistencia ≈ (1 + c)/(1 - c) = {(1 + c_bar) / (1 - c_bar):.1f} pasos")
+print(f"Longitud de persistencia -1/ln(c) = {-1 / np.log(c_bar):.1f} pasos; cruce (1 + c)/(1 - c) = {(1 + c_bar) / (1 - c_bar):.1f} pasos")
 ```
 
     Longitud de paso: media = 1.0000, desv. est. = 0.0011
     Fracción de pasos con rebote en una pared: 0.016
     Ángulo de giro (sin rebotes): media = -0.10°, desv. est. = 16.31°
     Teoría: desv. est. = 16.32°, E[cos θ] = 0.9601
-    Longitud de persistencia ≈ (1 + c)/(1 - c) = 49.1 pasos
+    Longitud de persistencia -1/ln(c) = 24.5 pasos; cruce (1 + c)/(1 - c) = 49.1 pasos
 
 
 
@@ -396,7 +518,7 @@ plt.show()
 
 
     
-{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_6_0.png' | relative_url }}){% raw %}
+{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_7_0.png' | relative_url }}){% raw %}
     
 
 
@@ -404,7 +526,7 @@ plt.show()
 
 * Todos los pasos miden exactamente 1 (salvo en las paredes): la longitud de paso no es aleatoria.
 * Los ángulos de giro siguen la distribución triangular predicha, centrada en 0 y sin preferencia por izquierda o derecha.
-* Como los giros son pequeños (desviación estándar de unos 16°, $\bar c \approx 0.96$), la hormiga mantiene su dirección durante muchos pasos: es **persistente**, con una longitud de persistencia de unos 50 pasos, del orden del tamaño del mundo (71 parcelas). A escalas mucho más largas su desplazamiento crece como $\sqrt n$, igual que una caminata aleatoria simple o el movimiento browniano. La curva simulada coincide con la fórmula teórica.
+* Como los giros son pequeños (desviación estándar de unos 16°, $\bar c \approx 0.96$), la hormiga mantiene su dirección durante muchos pasos: es **persistente**, con una longitud de persistencia de unos 25 pasos, y el paso de movimiento balístico a difusivo ocurre alrededor de los 50 pasos, una escala comparable al tamaño del mundo (71 parcelas). A escalas mucho más largas su distancia típica crece como $\sqrt n$, igual que en una caminata aleatoria simple o el movimiento browniano. La curva simulada coincide con la fórmula teórica.
 * En los bordes del mundo el comportamiento cambia: las hormigas rebotan y su desplazamiento se satura en el tamaño del mundo. "Mirar los límites", como pide el enunciado, muestra que las paredes atrapan y concentran trayectorias en los bordes.
 
 Este detalle será decisivo en lo que sigue: la búsqueda original **no es** una caminata browniana sin memoria. En la escala del hormiguero se mueve casi en línea recta y no regresa constantemente sobre sus pasos.
@@ -461,7 +583,7 @@ plt.show()
 
 
     
-{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_9_0.png' | relative_url }}){% raw %}
+{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_10_0.png' | relative_url }}){% raw %}
     
 
 
@@ -501,7 +623,7 @@ plt.show()
 
 
     
-{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_10_0.png' | relative_url }}){% raw %}
+{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_11_0.png' | relative_url }}){% raw %}
     
 
 
@@ -541,7 +663,7 @@ plt.show()
 
 
     
-{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_13_0.png' | relative_url }}){% raw %}
+{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_14_0.png' | relative_url }}){% raw %}
     
 
 
@@ -666,13 +788,13 @@ plt.show()
 
 
     
-{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_16_0.png' | relative_url }}){% raw %}
+{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_17_0.png' | relative_url }}){% raw %}
     
 
 
 
     
-{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_16_1.png' | relative_url }}){% raw %}
+{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_17_1.png' | relative_url }}){% raw %}
     
 
 
@@ -777,7 +899,7 @@ plt.show()
 
 
     
-{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_19_1.png' | relative_url }}){% raw %}
+{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_20_1.png' | relative_url }}){% raw %}
     
 
 
@@ -868,7 +990,7 @@ plt.show()
 
 
     
-{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_22_0.png' | relative_url }}){% raw %}
+{% endraw %}![Figura]({{ '/assets/images/mp1-p6-hormigas-levy/mp1-p6-hormigas-levy_23_0.png' | relative_url }}){% raw %}
     
 
 
@@ -879,7 +1001,7 @@ plt.show()
 Lo que muestran las simulaciones en Python y en NetLogo (los valores exactos están en las tablas de arriba):
 
 1. **En el mundo original de NetLogo, ningún vuelo de Lévy supera de forma significativa a la caminata original.** Con $\mu = 1.5$ los resultados son parecidos (incluso un poco peores en el primer hallazgo del escenario original). Con $\mu = 2$, $2.5$ y $3$ las hormigas son claramente más lentas en los tres escenarios, y cuanto mayor es $\mu$, peor les va.
-2. **La razón es contra qué estamos comparando.** La caminata original no es browniana: es una caminata correlacionada con una longitud de persistencia de unos 50 pasos, comparable al tamaño del mundo. Ya tiene la ventaja que se le atribuye a los vuelos de Lévy: no regresa sobre sus pasos. Un vuelo de Lévy con $\mu = 3$, en cambio, consiste casi siempre en pasos de 1 o 2 parcelas con una dirección completamente nueva; es lo más parecido a una caminata **browniana** y resulta la peor estrategia en todos los escenarios. Si comparamos Lévy contra el movimiento casi browniano ($\mu = 1.5$ o $2$ contra $\mu = 3$), sí se reproduce la predicción teórica: los vuelos de Lévy encuentran la comida mucho antes.
+2. **La razón es contra qué estamos comparando.** La caminata original no es browniana: es una caminata correlacionada que se mueve casi en línea recta durante unos 50 pasos (longitud de persistencia de unos 25 pasos), una escala comparable al tamaño del mundo. Ya tiene la ventaja que se le atribuye a los vuelos de Lévy: no regresa sobre sus pasos. Un vuelo de Lévy con $\mu = 3$, en cambio, consiste casi siempre en pasos de 1 o 2 parcelas con una dirección completamente nueva; es lo más parecido a una caminata **browniana** y resulta la peor estrategia en todos los escenarios. Si comparamos Lévy contra el movimiento casi browniano ($\mu = 1.5$ o $2$ contra $\mu = 3$), sí se reproduce la predicción teórica: los vuelos de Lévy encuentran la comida mucho antes.
 3. **La única pista de ventaja para Lévy aparece con comida escasa y lejana, y con $\mu$ pequeño, y es muy débil.** En Python, en el escenario `lejana`, con $\mu = 1.5$ las hormigas llevaban el 50 % de la comida al nido antes que con la caminata original (unos 400 contra 490 ticks, $p \approx 0.03$), pero esa diferencia **no se reproduce en NetLogo** (unos 410 contra 390 ticks), donde la caminata original recluta mejor. En el mundo grande con una sola fuente lejana (solo en Python), $\mu = 1.5$ encuentra la comida antes en promedio (unos 900 contra 1 200 ticks), pero sin significancia estadística ($p \approx 0.34$). Con fuentes diminutas dispersas, la caminata original es igual o mejor.
 4. **Con comida abundante y cercana, manda la feromona.** Las primeras fuentes se encuentran rápido con cualquier estrategia; lo que determina el forrajeo es el reclutamiento por rastros, que es igual para todas. Las diferencias aparecen cuando una fuente se agota y las hormigas tienen que buscar la siguiente.
 5. **Las paredes** cortan los vuelos largos: en un mundo cerrado y pequeño, la ventaja potencial de los pasos largos se pierde.
