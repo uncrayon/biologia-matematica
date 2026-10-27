@@ -44,7 +44,7 @@ plt.show() # Nos aseguramos de mostrar e imprimir el objeto en la pantalla
 
 
     
-![png](https://raw.githubusercontent.com/uncrayon/biologia-matematica/refs/heads/main/_images/metodo-newton-raphson_files/metodo-newton-raphson_17_0.png)
+![png](https://raw.githubusercontent.com/uncrayon/biologia-matematica/refs/heads/main/_images/metodo-newton-raphson_files/metodo-newton-raphson_4_0.png)
     
 
 
