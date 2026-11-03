@@ -5,3 +5,6 @@ sympy
 # para convertir notebooks en entradas del blog (_scripts/notebook_a_post.py):
 nbformat
 nbconvert
+# clase de modelos epidémicos (cuadernos de marimo y descarga de datos):
+marimo
+pandas
